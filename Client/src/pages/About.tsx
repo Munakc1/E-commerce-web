@@ -1,25 +1,19 @@
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Leaf, 
-  Heart, 
-  Users, 
-  Recycle, 
-  Target,
-  Award,
-  Globe,
-  ArrowRight
-} from "lucide-react";
+import { Leaf, Heart, Users, Recycle, Target, Award, Globe, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const About = () => {
   const stats = [
-    { icon: Users, value: "10,000+", label: "Active Users" },
-    { icon: Recycle, value: "50,000+", label: "Items Recycled" },
-    { icon: Heart, value: "5,000+", label: "Items Donated" },
-    { icon: Globe, value: "7", label: "Cities Covered" },
+    { icon: Users, value: 10000, label: "Active Users", displayValue: "10,000+" },
+    { icon: Recycle, value: 50000, label: "Items Recycled", displayValue: "50,000+" },
+    { icon: Heart, value: 5000, label: "Items Donated", displayValue: "5,000+" },
+    { icon: Globe, value: 7, label: "Cities Covered", displayValue: "7" },
   ];
 
   const values = [
@@ -45,15 +39,89 @@ const About = () => {
     }
   ];
 
+  const [dynamicStats, setDynamicStats] = useState(stats);
+  const [isVisible, setIsVisible] = useState(false);
+  const statsRef = useRef<HTMLDivElement>(null);
+
+  // Fetch donation count from localStorage and animate stats
+  useEffect(() => {
+    // Update Items Donated from localStorage
+    const donations = JSON.parse(localStorage.getItem("donations") || "[]");
+    const donationCount = donations.filter((d: any) => d.type === "items").length;
+    setDynamicStats((prev) =>
+      prev.map((stat) =>
+        stat.label === "Items Donated"
+          ? { ...stat, value: donationCount, displayValue: `${donationCount.toLocaleString()}+` }
+          : stat
+      )
+    );
+
+    // Intersection observer for stats animation
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 }
+    );
+
+    if (statsRef.current) {
+      observer.observe(statsRef.current);
+    }
+
+    return () => {
+      if (statsRef.current) {
+        observer.unobserve(statsRef.current);
+      }
+    };
+  }, []);
+
+  // Animate stats values
+  const [animatedStats, setAnimatedStats] = useState(
+    dynamicStats.map((stat) => ({ ...stat, current: 0 }))
+  );
+
+  useEffect(() => {
+    if (isVisible) {
+      const timers = dynamicStats.map((stat, index) => {
+        const increment = stat.value / 50; // Animate over ~2 seconds
+        let current = 0;
+
+        const timer = setInterval(() => {
+          current += increment;
+          if (current >= stat.value) {
+            current = stat.value;
+            clearInterval(timer);
+          }
+          setAnimatedStats((prev) =>
+            prev.map((s, i) =>
+              i === index
+                ? { ...s, current: Math.round(current), displayValue: s.label === "Cities Covered" ? `${Math.round(current)}` : `${Math.round(current).toLocaleString()}+` }
+                : s
+            )
+          );
+        }, 40);
+
+        return timer;
+      });
+
+      return () => timers.forEach((timer) => clearInterval(timer));
+    }
+  }, [isVisible, dynamicStats]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
       <main>
         {/* Hero Section */}
         <section className="py-20 bg-gradient-to-br from-thrift-cream to-background">
           <div className="container mx-auto px-4 text-center">
-            <Badge className="bg-thrift-warm/10 text-thrift-earth border-thrift-warm/20 mb-6">
+            <Badge
+              className="bg-thrift-warm/10 text-thrift-earth border-thrift-warm/20 mb-6"
+              aria-label="About ThriftSy"
+            >
               <Leaf className="w-4 h-4 mr-2" />
               About ThriftSy
             </Badge>
@@ -69,15 +137,24 @@ const About = () => {
         </section>
 
         {/* Stats Section */}
-        <section className="py-16 bg-card">
+        <section className="py-16 bg-card" ref={statsRef}>
           <div className="container mx-auto px-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-              {stats.map((stat, index) => (
-                <div key={index} className="text-center">
+              {animatedStats.map((stat, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+                    isVisible && "opacity-100"
+                  )}
+                  style={{ animationDelay: `${index * 150}ms` }}
+                >
                   <div className="w-16 h-16 bg-thrift-green/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <stat.icon className="w-8 h-8 text-thrift-green" />
+                    <stat.icon className="w-8 h-8 text-thrift-green" aria-hidden="true" />
                   </div>
-                  <div className="text-3xl font-bold text-thrift-green mb-2">{stat.value}</div>
+                  <div className="text-3xl font-bold text-thrift-green mb-2">
+                    {isVisible ? stat.displayValue : "0"}
+                  </div>
                   <div className="text-muted-foreground">{stat.label}</div>
                 </div>
               ))}
@@ -102,9 +179,15 @@ const About = () => {
                   We envision a future where buying and selling pre-loved clothes is the norm, 
                   not the exception, and where fashion contributes positively to society and the environment.
                 </p>
-                <Button className="bg-thrift-green hover:bg-thrift-green/90">
-                  Join Our Mission
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                <Button
+                  asChild
+                  className="bg-thrift-green hover:bg-thrift-green/90"
+                  aria-label="Join our mission by donating"
+                >
+                  <Link to="/donate">
+                    Join Our Mission
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Link>
                 </Button>
               </div>
               <div className="relative">
@@ -138,13 +221,20 @@ const About = () => {
                 The principles that guide everything we do at ThriftSy
               </p>
             </div>
-            
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {values.map((value, index) => (
-                <Card key={index} className="border-none shadow-sm hover:shadow-lg transition-shadow">
+                <Card
+                  key={index}
+                  className={cn(
+                    "border-none shadow-sm hover:shadow-lg transition-shadow",
+                    "opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+                    isVisible && "opacity-100"
+                  )}
+                  style={{ animationDelay: `${index * 150}ms` }}
+                >
                   <CardContent className="p-6 text-center">
                     <div className="w-16 h-16 bg-thrift-green/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <value.icon className="w-8 h-8 text-thrift-green" />
+                      <value.icon className="w-8 h-8 text-thrift-green" aria-hidden="true" />
                     </div>
                     <h3 className="font-bold mb-3">{value.title}</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed">
@@ -164,37 +254,39 @@ const About = () => {
               <h2 className="text-3xl md:text-4xl font-bold mb-4">How ThriftSy Works</h2>
               <p className="text-lg text-muted-foreground">Simple steps to sustainable fashion</p>
             </div>
-            
             <div className="grid md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-2xl font-bold text-white">1</span>
+              {[
+                {
+                  step: 1,
+                  title: "List Your Items",
+                  description: "Upload photos and details of clothes you no longer wear. Our team helps with quality checks.",
+                },
+                {
+                  step: 2,
+                  title: "Shop & Connect",
+                  description: "Browse unique pieces, connect with sellers, and find your perfect sustainable fashion match.",
+                },
+                {
+                  step: 3,
+                  title: "Donate & Impact",
+                  description: "Unsold items can be donated through our program, ensuring nothing goes to waste.",
+                },
+              ].map((item, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+                    isVisible && "opacity-100"
+                  )}
+                  style={{ animationDelay: `${index * 150}ms` }}
+                >
+                  <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
+                    <span className="text-2xl font-bold text-white">{item.step}</span>
+                  </div>
+                  <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                  <p className="text-muted-foreground">{item.description}</p>
                 </div>
-                <h3 className="text-xl font-bold mb-3">List Your Items</h3>
-                <p className="text-muted-foreground">
-                  Upload photos and details of clothes you no longer wear. Our team helps with quality checks.
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-2xl font-bold text-white">2</span>
-                </div>
-                <h3 className="text-xl font-bold mb-3">Shop & Connect</h3>
-                <p className="text-muted-foreground">
-                  Browse unique pieces, connect with sellers, and find your perfect sustainable fashion match.
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-2xl font-bold text-white">3</span>
-                </div>
-                <h3 className="text-xl font-bold mb-3">Donate & Impact</h3>
-                <p className="text-muted-foreground">
-                  Unsold items can be donated through our program, ensuring nothing goes to waste.
-                </p>
-              </div>
+              ))}
             </div>
           </div>
         </section>
@@ -209,17 +301,27 @@ const About = () => {
               Join thousands of Nepalis who are already making fashion more sustainable
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-white text-thrift-green hover:bg-gray-100">
-                Start Shopping
+              <Button
+                asChild
+                size="lg"
+                className="bg-white text-thrift-green hover:bg-gray-100"
+                aria-label="Start shopping for sustainable fashion"
+              >
+                <Link to="/shop">Start Shopping</Link>
               </Button>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-thrift-green">
-                Become a Seller
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white text-white hover:bg-white hover:text-thrift-green"
+                aria-label="Become a seller on ThriftSy"
+              >
+                <Link to="/sell">Become a Seller</Link>
               </Button>
             </div>
           </div>
         </section>
       </main>
-      
       <Footer />
     </div>
   );

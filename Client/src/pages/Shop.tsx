@@ -1,212 +1,258 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Filter, Grid, List, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { ShoppingCart } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  brand: string;
+  condition: string;
+  size: string;
+  price: number;
+  originalPrice: number | null;
+  location: string;
+  images: string[];
+  createdAt: string;
+}
 
 const Shop = () => {
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  
-  const products = [
-    {
-      id: "1",
-      title: "Vintage Denim Jacket with Embroidered Details",
-      price: 2500,
-      originalPrice: 4000,
-      brand: "Vintage Collection",
-      size: "M",
-      condition: "Excellent" as const,
-      images: [
-        "https://images.unsplash.com/photo-1544966503-7cc5ac882d5f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-      ],
-      seller: "Sarah K.",
-      location: "Kathmandu",
-    },
-    {
-      id: "2", 
-      title: "Handwoven Cotton Kurta Set",
-      price: 1800,
-      originalPrice: 3200,
-      brand: "Local Artisan",
-      size: "L",
-      condition: "Good" as const,
-      images: [
-        "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-      ],
-      seller: "Rani T.",
-      location: "Pokhara",
-    },
-    // Add more products...
-  ];
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priceFilter, setPriceFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("default");
+  const [isVisible, setIsVisible] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  const filters = [
-    { label: "Women's", count: 234 },
-    { label: "Men's", count: 156 },
-    { label: "Kids", count: 89 },
-    { label: "Accessories", count: 67 },
-  ];
+  // Fetch listings from localStorage
+  useEffect(() => {
+    const storedListings = JSON.parse(localStorage.getItem("listings") || "[]");
+    setListings(storedListings);
+    setFilteredListings(storedListings);
+  }, []);
+
+  // Apply filters and sorting
+  useEffect(() => {
+    let updatedListings = [...listings];
+
+    // Filter by category
+    if (categoryFilter !== "all") {
+      updatedListings = updatedListings.filter((listing) => listing.category === categoryFilter);
+    }
+
+    // Filter by price range
+    if (priceFilter !== "all") {
+      updatedListings = updatedListings.filter((listing) => {
+        if (priceFilter === "0-1000") return listing.price <= 1000;
+        if (priceFilter === "1000-5000") return listing.price > 1000 && listing.price <= 5000;
+        if (priceFilter === "5000+") return listing.price > 5000;
+        return true;
+      });
+    }
+
+    // Sort by price
+    if (sortOrder !== "default") {
+      updatedListings.sort((a, b) =>
+        sortOrder === "low-to-high" ? a.price - b.price : b.price - a.price
+      );
+    }
+
+    setFilteredListings(updatedListings);
+  }, [categoryFilter, priceFilter, sortOrder, listings]);
+
+  // Intersection observer for animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (gridRef.current) {
+      observer.observe(gridRef.current);
+    }
+
+    return () => {
+      if (gridRef.current) {
+        observer.unobserve(gridRef.current);
+      }
+    };
+  }, []);
+
+  // Add to cart and redirect to cart page
+  const addToCart = (listing: Listing) => {
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const cartItem = {
+      id: listing.id,
+      title: listing.title,
+      price: listing.price,
+      image: listing.images[0] || "",
+      quantity: 1,
+    };
+    localStorage.setItem("cart", JSON.stringify([...cart, cartItem]));
+    navigate("/cart");
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Shop Sustainable Fashion</h1>
-          <p className="text-muted-foreground">Discover unique pre-loved items from verified sellers</p>
+        <div
+          className={cn(
+            "mb-8 opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+            isVisible && "opacity-100"
+          )}
+        >
+          <h1 className="text-3xl font-bold mb-2">Shop Pre-Loved Fashion</h1>
+          <p className="text-muted-foreground">
+            Discover unique, sustainable fashion items listed by our community
+          </p>
         </div>
 
-        {/* Filters & Search */}
-        <div className="bg-card rounded-lg border p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search items, brands, or sellers..."
-                className="pl-10"
-              />
-            </div>
-            
-            {/* Filters */}
-            <div className="flex gap-3">
-              <Select>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="women">Women's</SelectItem>
-                  <SelectItem value="men">Men's</SelectItem>
-                  <SelectItem value="kids">Kids</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="xs">XS</SelectItem>
-                  <SelectItem value="s">S</SelectItem>
-                  <SelectItem value="m">M</SelectItem>
-                  <SelectItem value="l">L</SelectItem>
-                  <SelectItem value="xl">XL</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest First</SelectItem>
-                  <SelectItem value="price-low">Price: Low to High</SelectItem>
-                  <SelectItem value="price-high">Price: High to Low</SelectItem>
-                  <SelectItem value="popular">Most Popular</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button variant="outline">
-                <Filter className="w-4 h-4 mr-2" />
-                More Filters
+        {/* Filters and Sorting */}
+        <div
+          className={cn(
+            "flex flex-col sm:flex-row gap-4 mb-8 opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+            isVisible && "opacity-100"
+          )}
+        >
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Category</label>
+            <Select
+              value={categoryFilter}
+              onValueChange={setCategoryFilter}
+              aria-label="Filter by category"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="women">Women's Clothing</SelectItem>
+                <SelectItem value="men">Men's Clothing</SelectItem>
+                <SelectItem value="kids">Kids' Clothing</SelectItem>
+                <SelectItem value="accessories">Accessories</SelectItem>
+                <SelectItem value="shoes">Shoes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Price Range</label>
+            <Select
+              value={priceFilter}
+              onValueChange={setPriceFilter}
+              aria-label="Filter by price range"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Prices" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Prices</SelectItem>
+                <SelectItem value="0-1000">NPR 0 - 1,000</SelectItem>
+                <SelectItem value="1000-5000">NPR 1,000 - 5,000</SelectItem>
+                <SelectItem value="5000+">NPR 5,000+</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Sort By</label>
+            <Select
+              value={sortOrder}
+              onValueChange={setSortOrder}
+              aria-label="Sort by price"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default</SelectItem>
+                <SelectItem value="low-to-high">Price: Low to High</SelectItem>
+                <SelectItem value="high-to-low">Price: High to Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Listings Grid */}
+        <div ref={gridRef}>
+          {filteredListings.length === 0 ? (
+            <div
+              className={cn(
+                "text-center py-12 text-muted-foreground opacity-0 animate-in fade-in duration-500",
+                isVisible && "opacity-100"
+              )}
+            >
+              <p>No items available. Be the first to list something!</p>
+              <Button
+                asChild
+                className="mt-4 bg-thrift-green hover:bg-thrift-green/90"
+              >
+                <a href="/sell">List an Item</a>
               </Button>
             </div>
-          </div>
-          
-          {/* Active Filters */}
-          <div className="flex gap-2 mt-4">
-            <Badge variant="secondary">Women's</Badge>
-            <Badge variant="secondary">Size M</Badge>
-            <Badge variant="secondary">Under NPR 3000</Badge>
-          </div>
-        </div>
-
-        <div className="flex gap-8">
-          {/* Sidebar Filters */}
-          <aside className="hidden lg:block w-64 space-y-6">
-            <div className="bg-card rounded-lg border p-4">
-              <h3 className="font-semibold mb-3">Categories</h3>
-              <div className="space-y-2">
-                {filters.map((filter) => (
-                  <div key={filter.label} className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="rounded" />
-                      <span className="text-sm">{filter.label}</span>
-                    </label>
-                    <span className="text-xs text-muted-foreground">{filter.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Results Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <span className="text-muted-foreground">Showing 1-24 of 156 results</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
+          ) : (
+            <div
+              className={cn(
+                "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+                isVisible && "opacity-100"
+              )}
+            >
+              {filteredListings.map((listing, index) => (
+                <Card
+                  key={listing.id}
+                  className="border-none shadow-sm hover:shadow-lg transition-shadow"
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <Grid className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                >
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Products Grid */}
-            <div className={`grid gap-6 ${
-              viewMode === "grid" 
-                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
-                : "grid-cols-1"
-            }`}>
-              {products.map((product) => (
-                <ProductCard key={product.id} {...product} />
+                  <CardContent className="p-4">
+                    <img
+                      src={listing.images[0] || "https://via.placeholder.com/150"}
+                      alt={listing.title}
+                      className="h-48 w-full object-cover rounded-lg mb-4"
+                    />
+                    <h3 className="text-lg font-semibold mb-2 truncate">
+                      {listing.title}
+                    </h3>
+                    <p className="text-thrift-green font-bold mb-2">
+                      NPR {listing.price.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Condition: {listing.condition}
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Category: {listing.category}
+                    </p>
+                    <Button
+                      className="w-full bg-thrift-green hover:bg-thrift-green/90"
+                      onClick={() => addToCart(listing)}
+                      aria-label={`Add ${listing.title} to cart`}
+                    >
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to Cart
+                    </Button>
+                  </CardContent>
+                </Card>
               ))}
             </div>
-
-            {/* Pagination */}
-            <div className="flex justify-center mt-12">
-              <div className="flex gap-2">
-                <Button variant="outline">Previous</Button>
-                <Button variant="outline">1</Button>
-                <Button>2</Button>
-                <Button variant="outline">3</Button>
-                <Button variant="outline">4</Button>
-                <Button variant="outline">Next</Button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </main>
-      
       <Footer />
     </div>
   );
 };
 
 export default Shop;
-

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Heart, ShoppingBag, Eye } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,23 +37,58 @@ export const ProductCard = ({
 }: ProductCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [liked, setLiked] = useState(isLiked);
+  const [cartItems, setCartItems] = useState<number>(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  const discountPercentage = originalPrice 
+  // Load cart and wishlist from localStorage on mount
+  useEffect(() => {
+    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
+    setCartItems(storedCart.length);
+    const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+    setLiked(storedWishlist.includes(id));
+  }, [id]);
+
+  const discountPercentage = originalPrice
     ? Math.round((1 - price / originalPrice) * 100)
     : 0;
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
-      case "Excellent": return "bg-success text-success-foreground";
-      case "Good": return "bg-thrift-green text-white";
-      case "Fair": return "bg-warning text-warning-foreground";
-      default: return "bg-muted text-muted-foreground";
+      case "Excellent":
+        return "bg-success text-success-foreground";
+      case "Good":
+        return "bg-thrift-green text-white";
+      case "Fair":
+        return "bg-warning text-warning-foreground";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleAddToCart = () => {
+    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
+    if (!storedCart.includes(id)) {
+      storedCart.push(id);
+      localStorage.setItem("cartItems", JSON.stringify(storedCart));
+      setCartItems(storedCart.length);
+    }
+  };
+
+  const handleToggleWishlist = () => {
+    const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+    if (storedWishlist.includes(id)) {
+      const updatedWishlist = storedWishlist.filter((itemId: string) => itemId !== id);
+      localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+      setLiked(false);
+    } else {
+      storedWishlist.push(id);
+      localStorage.setItem("wishlist", JSON.stringify(storedWishlist));
+      setLiked(true);
     }
   };
 
   return (
-    <Card 
+    <Card
       className={cn(
         "group overflow-hidden border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-card",
         className
@@ -101,10 +137,12 @@ export const ProductCard = ({
         </div>
 
         {/* Action Buttons */}
-        <div className={cn(
-          "absolute top-3 right-3 flex flex-col gap-2 transition-all duration-300",
-          isHovered ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
-        )}>
+        <div
+          className={cn(
+            "absolute top-3 right-3 flex flex-col gap-2 transition-all duration-300",
+            isHovered ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+          )}
+        >
           <Button
             variant="secondary"
             size="sm"
@@ -112,7 +150,7 @@ export const ProductCard = ({
               "w-9 h-9 p-0 bg-white/90 hover:bg-white transition-colors",
               liked && "text-red-500 hover:text-red-600"
             )}
-            onClick={() => setLiked(!liked)}
+            onClick={handleToggleWishlist}
           >
             <Heart className={cn("w-4 h-4", liked && "fill-current")} />
           </Button>
@@ -161,13 +199,16 @@ export const ProductCard = ({
         </div>
 
         {/* Add to Cart Button */}
-        <Button 
-          className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
-          size="sm"
-        >
-          <ShoppingBag className="w-4 h-4 mr-2" />
-          Add to Cart
-        </Button>
+        <Link to="/cart">
+          <Button
+            className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
+            size="sm"
+            onClick={handleAddToCart}
+          >
+            <ShoppingBag className="w-4 h-4 mr-2" />
+            Add to Cart
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );

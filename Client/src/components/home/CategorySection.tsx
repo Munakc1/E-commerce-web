@@ -1,45 +1,52 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+
+type Category = {
+  name: string;
+  count: string;
+  image: string;
+  color: string;
+};
 
 export const CategorySection = () => {
-  const categories = [
-    {
-      name: "Women's Fashion",
-      count: "2,500+ items",
-      image: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-pink-400/20 to-purple-400/20"
-    },
-    {
-      name: "Men's Clothing",
-      count: "1,800+ items", 
-      image: "https://images.unsplash.com/photo-1506629905853-6e8f2bd2a040?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-blue-400/20 to-cyan-400/20"
-    },
-    {
-      name: "Traditional Wear",
-      count: "800+ items",
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-orange-400/20 to-red-400/20"
-    },
-    {
-      name: "Accessories",
-      count: "1,200+ items",
-      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-green-400/20 to-emerald-400/20"
-    },
-    {
-      name: "Shoes & Bags",
-      count: "950+ items",
-      image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-yellow-400/20 to-orange-400/20"
-    },
-    {
-      name: "Kids' Clothes",
-      count: "600+ items",
-      image: "https://images.unsplash.com/photo-1596638082942-8e9c1d50710c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      color: "from-teal-400/20 to-blue-400/20"
-    },
-  ];
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // Function to convert category name to URL-friendly slug
+  const getCategorySlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+  };
+
+  // Handle navigation to category page
+  const handleExplore = (categoryName: string) => {
+    const slug = getCategorySlug(categoryName);
+    navigate(`/category/${slug}`);
+  };
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        // Try backend first
+        const res = await fetch("/api/categories");
+        if (!res.ok) throw new Error("Backend not available");
+        const data = await res.json();
+        setCategories(data.categories || []);
+      } catch (err) {
+        console.warn("Using mock categories:", err);
+        const res = await fetch("/mock/data.json");
+        const data = await res.json();
+        setCategories(data.categories || []);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   return (
     <section className="py-16 bg-thrift-cream/30">
@@ -57,24 +64,30 @@ export const CategorySection = () => {
         {/* Categories Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {categories.map((category, index) => (
-            <Card key={index} className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-none">
+            <Card
+              key={index}
+              className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-none"
+            >
               <div className="relative h-48 overflow-hidden">
                 <img
                   src={category.image}
                   alt={category.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
-                <div className={`absolute inset-0 bg-gradient-to-t ${category.color} group-hover:opacity-80 transition-opacity`} />
-                
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t ${category.color} group-hover:opacity-80 transition-opacity`}
+                />
+
                 {/* Content Overlay */}
                 <div className="absolute inset-0 flex items-end p-6">
                   <div className="text-white">
                     <h3 className="text-xl font-bold mb-1">{category.name}</h3>
                     <p className="text-white/90 mb-3">{category.count}</p>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="bg-white/20 backdrop-blur text-white border-white/30 hover:bg-white hover:text-gray-900"
                       variant="outline"
+                      onClick={() => handleExplore(category.name)}
                     >
                       Explore
                     </Button>

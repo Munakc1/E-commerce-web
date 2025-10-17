@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [cartItems] = useState(3); // Mock cart count
+  const [cartItems] = useState(0); // Mock cart count - in a real app, this would come from context or state management
 
   const navLinks = [
     { href: "/", label: "Home" },
@@ -65,22 +66,30 @@ export const Navbar = () => {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-3">
-            <Button variant="ghost" size="sm" className="hover:bg-thrift-cream">
-              <Heart className="w-5 h-5" />
+            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+              <Link to="/wishlist">
+                <Heart className="w-5 h-5" />
+              </Link>
             </Button>
-            <Button variant="ghost" size="sm" className="hover:bg-thrift-cream relative">
-              <ShoppingBag className="w-5 h-5" />
-              {cartItems > 0 && (
-                <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
-                  {cartItems}
-                </Badge>
-              )}
+            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream relative">
+              <Link to="/cart">
+                <ShoppingBag className="w-5 h-5" />
+                {cartItems > 0 && (
+                  <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
+                    {cartItems}
+                  </Badge>
+                )}
+              </Link>
             </Button>
-            <Button variant="ghost" size="sm" className="hover:bg-thrift-cream">
-              <User className="w-5 h-5" />
+            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+              <Link to="/profile">
+                <User className="w-5 h-5" />
+              </Link>
             </Button>
-            <Button className="bg-thrift-green hover:bg-thrift-green/90">
-              Sign In
+            <Button asChild className="bg-thrift-green hover:bg-thrift-green/90">
+              <Link to="/Signin">
+                Sign In
+              </Link>
             </Button>
           </div>
 
@@ -122,27 +131,35 @@ export const Navbar = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-around pt-4 border-t">
-                <Button variant="ghost" size="sm">
-                  <Heart className="w-5 h-5 mr-2" />
-                  Wishlist
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/wishlist">
+                    <Heart className="w-5 h-5 mr-2" />
+                    Wishlist
+                  </Link>
                 </Button>
-                <Button variant="ghost" size="sm" className="relative">
-                  <ShoppingBag className="w-5 h-5 mr-2" />
-                  Cart
-                  {cartItems > 0 && (
-                    <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
-                      {cartItems}
-                    </Badge>
-                  )}
+                <Button asChild variant="ghost" size="sm" className="relative">
+                  <Link to="/cart">
+                    <ShoppingBag className="w-5 h-5 mr-2" />
+                    Cart
+                    {cartItems > 0 && (
+                      <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
+                        {cartItems}
+                      </Badge>
+                    )}
+                  </Link>
                 </Button>
-                <Button variant="ghost" size="sm">
-                  <User className="w-5 h-5 mr-2" />
-                  Profile
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/profile">
+                    <User className="w-5 h-5 mr-2" />
+                    Profile
+                  </Link>
                 </Button>
               </div>
-              <div className="pt-2">
-                <Button className="w-full bg-thrift-green hover:bg-thrift-green/90">
-                  Sign In
+              <div className="pt-2 px-4">
+                <Button asChild className="w-full bg-thrift-green hover:bg-thrift-green/90">
+                  <Link to="/signin">
+                    Sign In
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -150,5 +167,5 @@ export const Navbar = () => {
         )}
       </div>
     </nav>
-  );
+  ); 
 };
