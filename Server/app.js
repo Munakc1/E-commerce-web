@@ -2,10 +2,11 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const initDb = require("./config/initDb"); // ← Add this line
 
 // File upload and cloudinary
 const multer = require("multer");
-const cloudinary = require("./config/cloudinary"); // Make sure cloudinary.js exports correctly
+const cloudinary = require("./config/cloudinary");
 
 // Database connection
 const pool = require("./db");
@@ -14,13 +15,11 @@ const pool = require("./db");
 const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 
-
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ===== Middleware =====
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:8080', credentials: true })); // ← Updated
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -43,7 +42,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Something went wrong!" });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// ===== Start server with database initialization =====
+// ← Replace app.listen() with this async wrapper
+(async () => {
+  try {
+    await initDb(); // Initialize database and tables
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('❌ Database initialization failed:', err);
+    process.exit(1);
+  }
+})();

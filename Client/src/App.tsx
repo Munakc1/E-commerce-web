@@ -1,19 +1,23 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Shop from "./pages/Shop";
-import About from "./pages/About";
-import Sell from "./pages/Sell";
-import Donate from "./pages/Donate";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
+import { Sonner } from "@/components/ui/sonner";
+import { Navbar } from "./components/layout/Navbar";
+import { Footer } from "./components/layout/Footer";
+import { Home } from "./pages/Home";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
+import ProductDetail from "./pages/ProductDetail";
 import { Cart } from "./pages/Cart";
 import { Checkout } from "./pages/Checkout";
-// import { Wishlist } from "./pages/Wishlist";
+import Profile from "./pages/Profile";
+import  About from "./pages/About";
+import Contact from "./pages/Contact";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import Shop from "./pages/Shop";
+import Donate from "./pages/Donate";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -22,22 +26,78 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/sell" element={<Sell />} />
-          <Route path="/donate" element={<Donate />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          {/* <Route path="/wishlist" element={<Wishlist />} /> */}
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <Router>
+        <div className="min-h-screen bg-background flex flex-col">
+          <Navbar />
+          <main className="flex-1">
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} />
+
+              {/* Redirects */}
+              <Route path="/products" element={<Navigate to="/shop" replace />} />
+              <Route path="/products/:id" element={<Navigate to="/shop/:id" replace />} />
+
+              {/* Protected routes */}
+              <Route
+                path="/shop"
+                element={
+                  <ProtectedRoute>
+                    <Shop />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/shop/:id"
+                element={
+                  <ProtectedRoute>
+                    <ProductDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute>
+                    <Cart />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/checkout"
+                element={
+                  <ProtectedRoute>
+                    <Checkout />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/donate"
+                element={
+                  <ProtectedRoute>
+                    <Donate />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer /> {/* ← Add Footer component */}
+        </div>
+      </Router>
     </TooltipProvider>
   </QueryClientProvider>
 );

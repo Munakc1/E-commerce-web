@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,10 +14,26 @@ export const SignIn: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { login } = useAuth(); // ← Add this line
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Frontend validation
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
+  
     setIsLoading(true);
 
     try {
@@ -28,19 +45,18 @@ export const SignIn: React.FC = () => {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Invalid email or password');
+        throw new Error(data.error || data.message || 'Sign-in failed');
       }
 
-      const data = await response.json();
-      if (data.success) {
-        localStorage.setItem('authToken', data.token); // Store the real token
-        navigate('/');
-      } else {
-        throw new Error(data.message || 'Sign-in failed');
+      if (data.success && data.token) {
+        login(data.token, data.user); // ← Change this line
+        navigate('/'); // ← Goes to home
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during sign-in');
+      setError(err.message || 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
