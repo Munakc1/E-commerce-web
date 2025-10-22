@@ -20,8 +20,6 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Upload, HeartHandshake, Coins, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
 
 interface FormData {
   name: string;
@@ -175,7 +173,7 @@ export const Donate = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 text-center">
@@ -807,7 +805,6 @@ export const Donate = () => {
           </Link>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };
