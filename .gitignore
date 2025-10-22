@@ -10,7 +10,7 @@ build/
 out/
 coverage/
 
-# Env (keep examples)
+# Env 
 .env
 .env.*
 !.env.example

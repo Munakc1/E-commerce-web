@@ -14,10 +14,12 @@ import { Checkout } from "./pages/Checkout";
 import Profile from "./pages/Profile";
 import  About from "./pages/About";
 import Contact from "./pages/Contact";
+import Sell from "./pages/Sell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Shop from "./pages/Shop";
 import Donate from "./pages/Donate";
 import NotFound from "./pages/NotFound";
+import Wishlist from "./pages/Wishlist";
 
 const queryClient = new QueryClient();
 
@@ -91,11 +93,28 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+            
+              <Route
+                path="/sell"
+                element={
+                  <ProtectedRoute>
+                    <Sell />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/wishlist"
+                element={
+                  <ProtectedRoute>
+                    <Wishlist />
+                  </ProtectedRoute>
+                }
+              />
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
-          <Footer /> {/* ← Add Footer component */}
+          <Footer /> 
         </div>
       </Router>
     </TooltipProvider>

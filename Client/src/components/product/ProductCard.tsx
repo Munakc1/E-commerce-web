@@ -1,5 +1,6 @@
+import { Heart } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Heart, ShoppingBag, Eye } from "lucide-react";
+import { ShoppingBag, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

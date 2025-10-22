@@ -246,84 +246,68 @@ const About = () => {
               {
                 step: 1,
                 title: "List Your Items",
-                description: "Upload photos and details of clothes you no longer
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How ThriftSy Works</h2>
-            <p className="text-lg text-muted-foreground">Simple steps to sustainable fashion</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {{
-              step: 1,
-              title: "List Your Items",
-              description: "Upload photos and details of clothes you no longer
-              {[
-                {
-                  step: 1,
-                  title: "List Your Items",
-                  description: "Upload photos and details of clothes you no longer wear. Our team helps with quality checks.",
-                },
-                {
-                  step: 2,
-                  title: "Shop & Connect",
-                  description: "Browse unique pieces, connect with sellers, and find your perfect sustainable fashion match.",
-                },
-                {
-                  step: 3,
-                  title: "Donate & Impact",
-                  description: "Unsold items can be donated through our program, ensuring nothing goes to waste.",
-                },
-              ].map((item, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
-                    isVisible && "opacity-100"
-                  )}
-                  style={{ animationDelay: `${index * 150}ms` }}
-                >
-                  <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
-                    <span className="text-2xl font-bold text-white">{item.step}</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">{item.title}</h3>
-                  <p className="text-muted-foreground">{item.description}</p>
+                description: "Upload photos and details of clothes you no longer wear. Our team helps with quality checks.",
+              },
+              {
+                step: 2,
+                title: "Shop & Connect",
+                description: "Browse unique pieces, connect with sellers, and find your perfect sustainable fashion match.",
+              },
+              {
+                step: 3,
+                title: "Donate & Impact",
+                description: "Unsold items can be donated through our program, ensuring nothing goes to waste.",
+              },
+            ].map((item, index) => (
+              <div
+                key={index}
+                className={cn(
+                  "text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
+                  isVisible && "opacity-100"
+                )}
+                style={{ animationDelay: `${index * 150}ms` }}
+              >
+                <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-white">{item.step}</span>
                 </div>
-              ))}
-            </div>
+                <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                <p className="text-muted-foreground">{item.description}</p>
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* CTA Section */}
-        <section className="py-20 bg-thrift-green text-white">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Ready to Make a Difference?
-            </h2>
-            <p className="text-xl mb-8 opacity-90">
-              Join thousands of Nepalis who are already making fashion more sustainable
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                asChild
-                size="lg"
-                className="bg-white text-thrift-green hover:bg-gray-100"
-                aria-label="Start shopping for sustainable fashion"
-              >
-                <Link to="/shop">Start Shopping</Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="border-white text-white hover:bg-white hover:text-thrift-green"
-                aria-label="Become a seller on ThriftSy"
-              >
-                <Link to="/sell">Become a Seller</Link>
-              </Button>
-            </div>
+      <section className="py-20 bg-thrift-green text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            Ready to Make a Difference?
+          </h2>
+          <p className="text-xl mb-8 opacity-90">
+            Join thousands of Nepalis who are already making fashion more sustainable
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              asChild
+              size="lg"
+              className="bg-white text-thrift-green hover:bg-gray-100"
+              aria-label="Start shopping for sustainable fashion"
+            >
+              <Link to="/shop">Start Shopping</Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-white text-white hover:bg-white hover:text-thrift-green"
+              aria-label="Become a seller on ThriftSy"
+            >
+              <Link to="/sell">Become a Seller</Link>
+            </Button>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </div>
+        </div>
+      </section>
+    </>
   );
 };
 

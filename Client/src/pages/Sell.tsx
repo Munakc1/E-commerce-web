@@ -141,7 +141,7 @@ const Sell = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className={cn(
@@ -461,7 +461,7 @@ const Sell = () => {
           </div>
         </div>
       </main>
-      <Footer />
+      
     </div>
   );
 };

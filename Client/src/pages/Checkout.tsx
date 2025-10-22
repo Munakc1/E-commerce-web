@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -274,7 +272,7 @@ export const Checkout = () => {
   if (cartItems.length === 0) {
     return (
       <div className="flex flex-col min-h-screen bg-thrift-cream">
-        <Navbar />
+        
         <div className="container mx-auto px-4 py-16 flex-grow">
           <Alert className="max-w-md mx-auto border-thrift-warm/20">
             <AlertDescription className="text-center">
@@ -286,14 +284,13 @@ export const Checkout = () => {
             </AlertDescription>
           </Alert>
         </div>
-        <Footer />
+      
       </div>
     );
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-thrift-cream">
-      <Navbar />
       <section className="py-16 flex-grow">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-bold text-center mb-12 text-thrift-green">
@@ -517,7 +514,7 @@ export const Checkout = () => {
           </form>
         </div>
       </section>
-      <Footer />
+      
     </div>
   );
 };
