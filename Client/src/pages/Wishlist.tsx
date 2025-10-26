@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Heart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/context/AuthContext";
 
 export interface Product {
   id: string;
@@ -67,23 +68,113 @@ export const useWishlist = () => {
   return context;
 };
 
-type WishlistItem = { id: string; };
+type WishlistItem = {
+  id: string;
+  title: string;
+  price: number;
+  image?: string;
+};
 
 export default function Wishlist() {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, token } = useAuth();
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("wishlist") || "[]");
-    const normalized = (Array.isArray(stored) ? stored : []).map((id: string) => ({ id }));
-    setWishlist(normalized);
-  }, []);
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // If authenticated, use DB-backed wishlist
+        if (isAuthenticated && token) {
+          const resp = await fetch(`${apiBase}/api/wishlist`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!resp.ok) throw new Error('Failed to load wishlist');
+          const ids: string[] = await resp.json();
+          if (!Array.isArray(ids) || ids.length === 0) {
+            setWishlist([]);
+          } else {
+            // Fetch product details for each id
+            const prods = await Promise.all(ids.map(async (id) => {
+              try {
+                const r = await fetch(`${apiBase}/api/products/${id}`);
+                if (!r.ok) throw new Error('not ok');
+                const p = await r.json();
+                const image = Array.isArray(p.images) && p.images.length ? p.images[0] : (p.image || undefined);
+                return { id: String(p.id), title: p.title, price: Number(p.price || 0), image } as WishlistItem;
+              } catch {
+                return null;
+              }
+            }));
+            setWishlist(prods.filter(Boolean) as WishlistItem[]);
+          }
+          return;
+        }
+      } catch (e: any) {
+        // fall through to local storage
+      }
+      // Guest or API failed: fallback to localStorage ids and minimal rendering
+      try {
+        const stored = JSON.parse(localStorage.getItem("wishlist") || "[]");
+        const normalized: WishlistItem[] = (Array.isArray(stored) ? stored : []).map((id: string) => ({ id, title: `Product #${id}`, price: 0 }));
+        setWishlist(normalized);
+      } catch {
+        setWishlist([]);
+      }
+    };
+    load().finally(() => setLoading(false));
+  }, [apiBase, isAuthenticated, token]);
 
-  useEffect(() => {
-    localStorage.setItem("wishlist", JSON.stringify(wishlist.map(w => w.id)));
-  }, [wishlist]);
+  const removeItem = async (id: string) => {
+    const idStr = String(id);
+    setWishlist(prev => prev.filter(w => String(w.id) !== idStr));
+    try {
+      if (isAuthenticated && token) {
+        const resp = await fetch(`${apiBase}/api/wishlist/${idStr}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        if (!resp.ok) throw new Error('Failed');
+      } else {
+        const raw = JSON.parse(localStorage.getItem('wishlist') || '[]');
+        const arr = Array.isArray(raw) ? raw : [];
+        localStorage.setItem('wishlist', JSON.stringify(arr.filter((x: any) => String(x) !== idStr)));
+      }
+      window.dispatchEvent(new CustomEvent('wishlistUpdated'));
+    } catch {}
+  };
 
-  const removeItem = (id: string) => setWishlist(prev => prev.filter(w => w.id !== id));
-  const clearAll = () => setWishlist([]);
+  const clearAll = async () => {
+    const ids = wishlist.map(w => String(w.id));
+    setWishlist([]);
+    try {
+      if (isAuthenticated && token) {
+        // Delete one by one (simple, safe). Could be optimized with a bulk endpoint later.
+        await Promise.all(ids.map(id => fetch(`${apiBase}/api/wishlist/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })));
+      } else {
+        localStorage.setItem('wishlist', JSON.stringify([]));
+      }
+      window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: 0 } }));
+    } catch {}
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="bg-card border-none shadow-sm">
+          <CardContent className="p-8 text-center">Loading wishlist…</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="bg-card border-none shadow-sm">
+          <CardContent className="p-8 text-center text-destructive">{error}</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (wishlist.length === 0) {
     return (
@@ -102,26 +193,29 @@ export default function Wishlist() {
     );
   }
 
-  // Minimal rendering; replace with real product fetch if available
+  // Render products from DB (or minimal fallback for guests)
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">My Wishlist</h1>
         <Button variant="ghost" onClick={clearAll} className="text-thrift-warm">Clear All</Button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {wishlist.map(item => (
-          <Card key={item.id} className="border-none shadow-sm bg-card">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Product #{item.id}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between">
-              <Link to={`/product/${item.id}`} className="text-thrift-green hover:underline">
-                View details
+          <Card key={item.id} className="border rounded-lg shadow-sm hover:shadow-md transition bg-card">
+            <CardContent className="p-4">
+              <Link to={`/product/${item.id}`} className="block">
+                {item.image && (
+                  <img src={item.image} alt={item.title} className="h-48 w-full object-cover rounded-md mb-4" />
+                )}
+                <div className="font-semibold truncate mb-1">{item.title}</div>
+                <div className="text-thrift-green font-bold mb-3">NPR {Number(item.price || 0).toLocaleString()}</div>
               </Link>
-              <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}

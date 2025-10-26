@@ -274,7 +274,7 @@ export default function Checkout() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm bg-thrift-cream">
+            <Card className="border-none shadow-sm bg-[hsl(var(--thrift-green))]/10">
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-thrift-green">Order Summary</CardTitle>
               </CardHeader>

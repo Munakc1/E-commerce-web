@@ -81,9 +81,10 @@ export const ProductCard = ({
       });
     }
     localStorage.setItem("cart", JSON.stringify(storedCart));
-    setCartItems(storedCart.length);
+    const totalQty = storedCart.reduce((sum: number, it: any) => sum + (Number(it.quantity ?? 1) || 1), 0);
+    setCartItems(totalQty);
     try {
-      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: storedCart.length } }));
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
   };
 

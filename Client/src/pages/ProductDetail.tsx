@@ -59,8 +59,9 @@ export default function ProductDetail() {
       cart.push({ id: idStr, title, price, image, quantity: 1 });
     }
     localStorage.setItem("cart", JSON.stringify(cart));
+    const totalQty = cart.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
     try {
-      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } }));
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
     setBanner("Added to cart.");
     setTimeout(() => setBanner(null), 2000);

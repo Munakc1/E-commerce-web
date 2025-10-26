@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 interface Listing {
   id: string;
@@ -32,6 +33,7 @@ const Shop = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated, token } = useAuth();
   const initialQ = (searchParams.get('q') || '').trim();
   const initialCat = (searchParams.get('category') || 'all').toLowerCase();
   const [searchQuery, setSearchQuery] = useState(initialQ);
@@ -81,6 +83,29 @@ const Shop = () => {
     };
     fetchProducts();
   }, [apiBase]);
+
+  // Load wishlist ids from API if authenticated; fallback to localStorage
+  useEffect(() => {
+    const loadWishlist = async () => {
+      try {
+        if (isAuthenticated && token) {
+          const resp = await fetch(`${apiBase}/api/wishlist`, { headers: { Authorization: `Bearer ${token}` } });
+          if (resp.ok) {
+            const ids = await resp.json();
+            setWishlistIds(new Set(Array.isArray(ids) ? ids.map(String) : []));
+            return;
+          }
+        }
+      } catch {}
+      try {
+        const raw = JSON.parse(localStorage.getItem("wishlist") || "[]");
+        setWishlistIds(new Set(Array.isArray(raw) ? raw.map(String) : []));
+      } catch {
+        setWishlistIds(new Set());
+      }
+    };
+    loadWishlist();
+  }, [apiBase, isAuthenticated, token]);
 
   // Keep category and search in sync with URL (on navigation/back/links)
   useEffect(() => {
@@ -203,16 +228,41 @@ const Shop = () => {
     }
 
     localStorage.setItem("cart", JSON.stringify(cart));
+    const totalQty = cart.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
     try {
-      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } }));
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
   };
 
-  const toggleWishlist = (id: string) => {
+  const toggleWishlist = async (id: string) => {
+    const pid = String(id);
+    if (isAuthenticated && token) {
+      try {
+        if (wishlistIds.has(pid)) {
+          const resp = await fetch(`${apiBase}/api/wishlist/${pid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+          if (!resp.ok) throw new Error('Failed');
+          setWishlistIds(prev => { const next = new Set(prev); next.delete(pid); return next; });
+          window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: Math.max(0, wishlistIds.size - 1) } }));
+          return;
+        } else {
+          const resp = await fetch(`${apiBase}/api/wishlist`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ productId: pid })
+          });
+          if (!resp.ok) throw new Error('Failed');
+          setWishlistIds(prev => { const next = new Set(prev); next.add(pid); return next; });
+          window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: wishlistIds.size + 1 } }));
+          return;
+        }
+      } catch {
+        // fall back to local behavior on failure
+      }
+    }
+    // Fallback local toggle
     setWishlistIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(pid)) next.delete(pid); else next.add(pid);
       try {
         localStorage.setItem("wishlist", JSON.stringify(Array.from(next)));
         window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: next.size } }));

@@ -59,7 +59,8 @@ export const Navbar = () => {
     const getCount = () => {
       try {
         const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        return Array.isArray(cart) ? cart.length : 0;
+        if (!Array.isArray(cart)) return 0;
+        return cart.reduce((sum: number, item: any) => sum + (Number(item?.quantity ?? 1) || 1), 0);
       } catch {
         return 0;
       }

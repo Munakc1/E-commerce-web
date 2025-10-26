@@ -16,6 +16,7 @@ export default function Cart() {
   const clearCart = () => {
     localStorage.setItem("cart", JSON.stringify([]));
     setCart([]);
+    try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -57,10 +58,18 @@ export default function Cart() {
       if (newQty <= 0) {
         const filtered = next.filter((it) => String(it.id) !== idStr);
         localStorage.setItem("cart", JSON.stringify(filtered));
+        try {
+          const totalQty = filtered.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
+          window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalQty } }));
+        } catch {}
         return filtered;
       }
       next[idx].quantity = newQty;
       localStorage.setItem("cart", JSON.stringify(next));
+      try {
+        const totalQty = next.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
+        window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalQty } }));
+      } catch {}
       return next;
     });
   }
@@ -70,6 +79,10 @@ export default function Cart() {
       const idStr = String(id);
       const filtered = prev.filter((it) => String(it.id) !== idStr);
       localStorage.setItem("cart", JSON.stringify(filtered));
+      try {
+        const totalQty = filtered.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
+        window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalQty } }));
+      } catch {}
       return filtered;
     });
   }
