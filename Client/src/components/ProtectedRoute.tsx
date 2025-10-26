@@ -1,15 +1,15 @@
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
+export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { token, loading } = useAuth();
+  const location = useLocation();
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  // Wait for hydration on refresh
+  if (loading) return null; // or a spinner
 
-  if (!isAuthenticated) {
-    return <Navigate to="/signup" replace />;
+  if (!token) {
+    return <Navigate to="/signin" replace state={{ from: location }} />;
   }
 
   return <>{children}</>;

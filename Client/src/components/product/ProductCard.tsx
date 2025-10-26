@@ -43,8 +43,9 @@ export const ProductCard = ({
 
   // Load cart and wishlist from localStorage on mount
   useEffect(() => {
-    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
-    setCartItems(storedCart.length);
+    // load unified cart (array of item objects)
+    const storedCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    setCartItems(Array.isArray(storedCart) ? storedCart.length : 0);
     const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
     setLiked(storedWishlist.includes(id));
   }, [id]);
@@ -67,12 +68,21 @@ export const ProductCard = ({
   };
 
   const handleAddToCart = () => {
-    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
-    if (!storedCart.includes(id)) {
-      storedCart.push(id);
-      localStorage.setItem("cartItems", JSON.stringify(storedCart));
-      setCartItems(storedCart.length);
+    const storedCart: Array<any> = JSON.parse(localStorage.getItem("cart") || "[]");
+    const idx = storedCart.findIndex((c) => String(c.id) === String(id));
+    if (idx >= 0) {
+      storedCart[idx].quantity = (storedCart[idx].quantity || 1) + 1;
+    } else {
+      storedCart.push({
+        id,
+        title,
+        price,
+        image: images && images[0] ? images[0] : "",
+        quantity: 1,
+      });
     }
+    localStorage.setItem("cart", JSON.stringify(storedCart));
+    setCartItems(storedCart.length);
   };
 
   const handleToggleWishlist = () => {

@@ -181,7 +181,7 @@ const About = () => {
             </div>
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1556911073-38141963c3c8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                src="public/favicon.png"
                 alt="Sustainable fashion mission"
                 className="rounded-2xl shadow-lg"
               />

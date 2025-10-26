@@ -6,7 +6,7 @@ export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // TODO: Fetch product data from backend using `id`
+
   const product = {
     id: id,
     title: "Vintage Denim Jacket",

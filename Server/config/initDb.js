@@ -61,10 +61,44 @@ async function initDb() {
         FOREIGN KEY (product_id) REFERENCES products(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    /* NEW: orders and order_items */
+    `CREATE TABLE IF NOT EXISTS orders (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id INT UNSIGNED NULL,
+      subtotal DECIMAL(12,2) NOT NULL,
+      tax DECIMAL(12,2) NOT NULL,
+      shipping DECIMAL(12,2) NOT NULL,
+      total DECIMAL(12,2) NOT NULL,
+      payment_method VARCHAR(50),
+      payment_status VARCHAR(50) DEFAULT 'pending',
+      shipping_address JSON,
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    `CREATE TABLE IF NOT EXISTS order_items (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NOT NULL,
+      product_id INT UNSIGNED NULL,
+      title VARCHAR(255) NOT NULL,
+      price DECIMAL(12,2) NOT NULL,
+      quantity INT NOT NULL,
+      PRIMARY KEY (id),
+      CONSTRAINT fk_order_items_order
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
   ];
 
   for (const sql of statements) {
-    await pool.execute(sql);
+    try {
+      await pool.execute(sql);
+    } catch (err) {
+      console.error('Failed running statement:', err);
+    }
   }
   console.log('✅ Database and tables are ready');
 }

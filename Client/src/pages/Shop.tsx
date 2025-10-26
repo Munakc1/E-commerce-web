@@ -92,15 +92,23 @@ const Shop = () => {
 
   // Add to cart and redirect to cart page
   const addToCart = (listing: Listing) => {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const cartItem = {
-      id: listing.id,
-      title: listing.title,
-      price: listing.price,
-      image: listing.images[0] || "",
-      quantity: 1,
-    };
-    localStorage.setItem("cart", JSON.stringify([...cart, cartItem]));
+    const cart: Array<{ id: string; title: string; price: number; image: string; quantity: number }> =
+      JSON.parse(localStorage.getItem("cart") || "[]");
+
+    const idx = cart.findIndex((c) => c.id === listing.id);
+    if (idx >= 0) {
+      cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
+    } else {
+      cart.push({
+        id: listing.id,
+        title: listing.title,
+        price: listing.price,
+        image: listing.images[0] || "",
+        quantity: 1,
+      });
+    }
+
+    localStorage.setItem("cart", JSON.stringify(cart));
     navigate("/cart");
   };
 

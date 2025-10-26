@@ -1,33 +1,41 @@
-import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import React, { useState, useEffect, ChangeEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Upload, X, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Upload, X, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 const Sell = () => {
   const [images, setImages] = useState<string[]>([]);
-  const [category, setCategory] = useState("");
-  const [condition, setCondition] = useState("");
-  const [size, setSize] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [brand, setBrand] = useState("");
-  const [price, setPrice] = useState("");
-  const [originalPrice, setOriginalPrice] = useState("");
-  const [location, setLocation] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('');
+  const [condition, setCondition] = useState('');
+  const [size, setSize] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [description, setDescription] = useState('');
+  const [brand, setBrand] = useState('');
+  const [originalPrice, setOriginalPrice] = useState('');
+  const [location, setLocation] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [submissionStatus, setSubmissionStatus] = useState<"idle" | "success" | "error">("idle");
   const [isVisible, setIsVisible] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = React.useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Intersection observer for animations
   useEffect(() => {
@@ -52,91 +60,150 @@ const Sell = () => {
     };
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    if (images.length + files.length > 8) {
-      setSubmissionStatus("error");
-      setErrors({ images: "You can upload a maximum of 8 images." });
-      return;
-    }
-
-    const newImages: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newImages.push(event.target.result as string);
-          if (newImages.length === files.length) {
-            setImages([...images, ...newImages]);
-            setErrors((prev) => ({ ...prev, images: "" }));
-          }
-        }
-      };
-      reader.readAsDataURL(files[i]);
-    }
+  // file input change -> store File objects for upload and show previews
+  const onFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    setFiles(list);
+    const previews = list.map((f) => URL.createObjectURL(f));
+    setImages(previews);
   };
 
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
-    setErrors((prev) => ({ ...prev, images: "" }));
+  // upload single File to Cloudinary (unsigned preset)
+  const uploadToCloudinary = async (file: File) => {
+    const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', uploadPreset);
+    const res = await fetch(url, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('Cloudinary upload failed');
+    const json = await res.json();
+    return json.secure_url as string;
   };
 
-  const validateForm = () => {
+  // revoke object URLs on unmount
+  useEffect(() => {
+    return () => {
+      images.forEach((src) => {
+        try { URL.revokeObjectURL(src); } catch {}
+      });
+    };
+  }, [images]);
+
+  // handle file input change -> create previews and store File objects
+  function handleImageUpload(event: ChangeEvent<HTMLInputElement>): void {
+    const inputFiles = Array.from(event.target.files || []);
+    if (inputFiles.length === 0) return;
+
+    // limit total images to 8
+    const max = 8;
+    setFiles((prevFiles) => {
+      const allowed = inputFiles.slice(0, Math.max(0, max - prevFiles.length));
+      return [...prevFiles, ...allowed];
+    });
+
+    setImages((prev) => {
+      const allowed = inputFiles.slice(0, Math.max(0, max - prev.length));
+      const previews = allowed.map((f) => URL.createObjectURL(f));
+      return [...prev, ...previews];
+    });
+
+    // reset input so same file can be re-selected if needed
+    if (event.target) (event.target as HTMLInputElement).value = '';
+  }
+
+  // preview files selected
+  function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []);
+    const allowed = picked.slice(0, 8 - files.length);
+    setFiles((prev) => [...prev, ...allowed]);
+    const previews = allowed.map((f) => URL.createObjectURL(f));
+    setImages((prev) => [...prev, ...previews]);
+    // reset input
+    if (e.target) (e.target as HTMLInputElement).value = '';
+  }
+
+  function removeImage(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setImages((prev) => {
+      const next = [...prev];
+      const removed = next.splice(index, 1);
+      try { if (removed[0] && removed[0].startsWith('blob:')) URL.revokeObjectURL(removed[0]); } catch {}
+      return next;
+    });
+  }
+
+  function validateForm() {
     const newErrors: { [key: string]: string } = {};
-    if (!title.trim()) newErrors.title = "Title is required";
-    if (!description.trim()) newErrors.description = "Description is required";
-    if (!category) newErrors.category = "Category is required";
-    if (!condition) newErrors.condition = "Condition is required";
-    if (!size) newErrors.size = "Size is required";
-    if (!price || parseFloat(price) <= 0) newErrors.price = "Valid price is required";
-    if (!location.trim()) newErrors.location = "Location is required";
+    if (images.length === 0) newErrors.images = 'Please upload at least one image';
+    if (!title.trim()) newErrors.title = 'Title is required';
+    if (!description.trim()) newErrors.description = 'Description is required';
+    if (!category) newErrors.category = 'Category is required';
+    if (!condition) newErrors.condition = 'Condition is required';
+    if (!size) newErrors.size = 'Size is required';
+    if (!price || parseFloat(price) <= 0) newErrors.price = 'Valid price is required';
+    if (!location.trim()) newErrors.location = 'Location is required';
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newErrors = validateForm();
+    console.log('Sell submit triggered');
+    setSubmitting(true);
+    setErrors({});
+    setSubmissionStatus('idle');
 
+    // perform client validation early and show messages
+    const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
+      console.warn('validation failed', newErrors);
       setErrors(newErrors);
-      setSubmissionStatus("error");
+      setSubmissionStatus('error');
+      setSubmitting(false);
       return;
     }
 
-    const listing = {
-      id: Date.now().toString(),
-      title,
-      description,
-      category,
-      brand,
-      condition,
-      size,
-      price: parseFloat(price),
-      originalPrice: originalPrice ? parseFloat(originalPrice) : null,
-      location,
-      images,
-      createdAt: new Date().toISOString(),
-    };
+    const fd = new FormData();
+    // required DB fields (match your products table)
+    fd.append('title', title);
+    fd.append('price', String(parseFloat(price) || 0));
+    // optional / nullable fields that exist in your table
+    if (originalPrice) fd.append('originalPrice', String(parseFloat(originalPrice)));
+    if (brand) fd.append('brand', brand);
+    if (size) fd.append('size', size);
+    if (condition) fd.append('productCondition', condition); // DB column name
+    if (location) fd.append('location', location);
+    // description column is NOT in your table — don't append it unless you add that column to DB
+    // files: append under "images" to match upload.array('images')
+    files.forEach((f) => fd.append('images', f));
 
-    // Store in localStorage
-    const existingListings = JSON.parse(localStorage.getItem("listings") || "[]");
-    localStorage.setItem("listings", JSON.stringify([...existingListings, listing]));
-
-    // Reset form
-    setImages([]);
-    setTitle("");
-    setDescription("");
-    setCategory("");
-    setBrand("");
-    setCondition("");
-    setSize("");
-    setPrice("");
-    setOriginalPrice("");
-    setLocation("");
-    setErrors({});
-    setSubmissionStatus("success");
+    try {
+      const resp = await fetch(`${apiBase}/api/products`, {
+        method: 'POST',
+        body: fd,
+      });
+      const text = await resp.text();
+      console.log('server response:', resp.status, text);
+      if (!resp.ok) {
+        alert('Server error creating product: ' + text);
+        // fallback save locally
+        const existing = JSON.parse(localStorage.getItem('listings') || '[]');
+        localStorage.setItem('listings', JSON.stringify([{ id: Date.now().toString(), title, price, images }, ...existing]));
+        return;
+      }
+      const json = text ? JSON.parse(text) : {};
+      alert('Product created id: ' + (json.id || 'unknown'));
+      // clear form
+      setTitle(''); setPrice(''); setFiles([]); setImages([]);
+      // navigate or update UI as needed
+      window.location.href = '/shop';
+    } catch (err) {
+      console.error('submit error', err);
+      alert('Upload failed, saved locally.');
+      const existing = JSON.parse(localStorage.getItem('listings') || '[]');
+      localStorage.setItem('listings', JSON.stringify([{ id: Date.now().toString(), title, price, images }, ...existing]));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -159,6 +226,7 @@ const Sell = () => {
           <div className="lg:col-span-2">
             <form
               onSubmit={handleSubmit}
+              noValidate
               className={cn(
                 "bg-card rounded-lg border p-6 space-y-6",
                 "opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
@@ -405,8 +473,8 @@ const Sell = () => {
               </div>
 
               {/* Submit Button */}
-              <Button type="submit" className="w-full bg-thrift-green hover:bg-thrift-green/90">
-                List Item for Sale
+              <Button type="submit" className="w-full bg-thrift-green hover:bg-thrift-green/90" disabled={submitting}>
+                {submitting ? "Listing..." : "List Item for Sale"}
               </Button>
             </form>
           </div>
