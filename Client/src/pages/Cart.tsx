@@ -19,7 +19,8 @@ export default function Cart() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const taxes = subtotal * 0.13;
+  const TAX_RATE = Number(import.meta.env.VITE_TAX_RATE ?? 0);
+  const taxes = subtotal * TAX_RATE;
   const shipping = cart.length > 0 ? 200 : 0;
   const total = subtotal + taxes + shipping;
 
@@ -46,18 +47,50 @@ export default function Cart() {
     );
   }
 
-  function updateQuantity(id: any, arg1: number): void {
-    throw new Error("Function not implemented.");
+  function updateQuantity(id: any, delta: number): void {
+    setCart((prev) => {
+      const idStr = String(id);
+      const next = prev.map((it) => ({ ...it }));
+      const idx = next.findIndex((it) => String(it.id) === idStr);
+      if (idx === -1) return prev;
+      const newQty = Number(next[idx].quantity || 0) + Number(delta || 0);
+      if (newQty <= 0) {
+        const filtered = next.filter((it) => String(it.id) !== idStr);
+        localStorage.setItem("cart", JSON.stringify(filtered));
+        return filtered;
+      }
+      next[idx].quantity = newQty;
+      localStorage.setItem("cart", JSON.stringify(next));
+      return next;
+    });
   }
 
   function removeItem(id: any): void {
-    throw new Error("Function not implemented.");
+    setCart((prev) => {
+      const idStr = String(id);
+      const filtered = prev.filter((it) => String(it.id) !== idStr);
+      localStorage.setItem("cart", JSON.stringify(filtered));
+      return filtered;
+    });
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Your Cart</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Your Cart</h1>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={clearCart}
+          className="hidden sm:inline-flex"
+          aria-label="Clear cart"
+          title="Clear cart"
+        >
+          <Trash2 className="w-4 h-4 mr-1" />
+          Clear Cart
+        </Button>
+      </div>
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2">
           {cart.map((item) => (
             <Card key={item.id} className="mb-4 border-none shadow-sm bg-card hover:shadow-lg transition-all duration-300">
@@ -78,7 +111,7 @@ export default function Cart() {
                     <Button variant="outline" size="sm" onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8">+</Button>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="text-thrift-warm hover:text-thrift-warm/80">
+                <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="text-destructive hover:text-destructive/90 hover:bg-destructive/10">
                   <Trash2 className="w-5 h-5" />
                 </Button>
               </CardContent>
@@ -86,7 +119,7 @@ export default function Cart() {
           ))}
         </div>
 
-        <Card className="bg-thrift-cream border-none shadow-sm">
+  <Card className="bg-thrift-cream border-none shadow-sm h-fit lg:sticky lg:top-6">
           <CardHeader>
             <CardTitle className="text-lg font-bold text-foreground">Order Summary</CardTitle>
           </CardHeader>
@@ -96,10 +129,12 @@ export default function Cart() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium text-foreground">NPR {subtotal.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Taxes (13%)</span>
-                <span className="font-medium text-foreground">NPR {taxes.toLocaleString()}</span>
-              </div>
+              {taxes > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Taxes ({Math.round(TAX_RATE * 100)}%)</span>
+                  <span className="font-medium text-foreground">NPR {taxes.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Shipping</span>
                 <span className="font-medium text-foreground">NPR {shipping.toLocaleString()}</span>
@@ -112,17 +147,19 @@ export default function Cart() {
               </div>
             </div>
             <div className="mt-6 space-y-4">
-              <Link to="/checkout">
-                <Button className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white" size="lg">
-                  Proceed to Checkout
-                </Button>
-              </Link>
-              <Link to="/shop">
-                <Button variant="outline" className="w-full border-thrift-green text-thrift-green hover:bg-thrift-green/10" size="lg">
-                  Continue Shopping
-                </Button>
-              </Link>
-              <Button variant="ghost" className="w-full text-thrift-warm hover:text-thrift-warm/80" size="lg" onClick={clearCart}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link to="/checkout">
+                  <Button className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white" size="lg">
+                    Proceed to Checkout
+                  </Button>
+                </Link>
+                <Link to="/shop">
+                  <Button variant="outline" className="w-full border-thrift-green text-thrift-green hover:bg-thrift-green/10" size="lg">
+                    Continue Shopping
+                  </Button>
+                </Link>
+              </div>
+              <Button variant="destructive" className="w-full sm:hidden" size="lg" onClick={clearCart}>
                 Clear Cart
               </Button>
             </div>

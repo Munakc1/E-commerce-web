@@ -73,13 +73,13 @@ export default function Wishlist() {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("wishlistItems") || "[]");
-    const normalized = stored.map((id: string) => ({ id }));
+    const stored = JSON.parse(localStorage.getItem("wishlist") || "[]");
+    const normalized = (Array.isArray(stored) ? stored : []).map((id: string) => ({ id }));
     setWishlist(normalized);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("wishlistItems", JSON.stringify(wishlist.map(w => w.id)));
+    localStorage.setItem("wishlist", JSON.stringify(wishlist.map(w => w.id)));
   }, [wishlist]);
 
   const removeItem = (id: string) => setWishlist(prev => prev.filter(w => w.id !== id));
@@ -116,7 +116,7 @@ export default function Wishlist() {
               <CardTitle className="text-base">Product #{item.id}</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between">
-              <Link to={`/shop/${item.id}`} className="text-thrift-green hover:underline">
+              <Link to={`/product/${item.id}`} className="text-thrift-green hover:underline">
                 View details
               </Link>
               <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)}>

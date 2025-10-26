@@ -32,6 +32,7 @@ export default function Profile() {
     if (!user?.id) return;
     setSaving(true);
     try {
+      setMessage(null);
       const res = await fetch(`${apiBase}/api/users/me`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -40,11 +41,14 @@ export default function Profile() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         console.error("Server error:", res.status, data);
+        setMessage((data && (data.message || data.error)) || "Failed to update profile.");
         return;
       }
       const updated = data.user || { ...user, name: form.name, phone: form.phone };
       token ? login(token, updated as any) : localStorage.setItem("user", JSON.stringify(updated));
       setEditing(false);
+      setMessage("Profile updated.");
+      setTimeout(() => setMessage(null), 3000);
     } finally {
       setSaving(false);
     }

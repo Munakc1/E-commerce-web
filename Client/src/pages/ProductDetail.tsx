@@ -1,24 +1,119 @@
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Heart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
+
+type Product = {
+  id: string | number;
+  title: string;
+  price: number;
+  originalPrice?: number | null;
+  condition?: string;
+  size?: string;
+  brand?: string;
+  description?: string;
+  seller?: string;
+  phone?: string | null;
+  images?: string[];
+  image?: string;
+  location?: string;
+};
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const { user, token } = useAuth();
 
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
 
-  const product = {
-    id: id,
-    title: "Vintage Denim Jacket",
-    price: 45.00,
-    originalPrice: 89.00,
-    condition: "Excellent",
-    size: "M",
-    brand: "Levi's",
-    description: "Classic vintage denim jacket in excellent condition. Perfect for any season.",
-    seller: "EcoFashionista",
-    image: "/placeholder-product.jpg",
+  // Add to cart helper
+  const addToCart = () => {
+    if (!product) return;
+    const cart: Array<{ id: string; title: string; price: number; image: string; quantity: number }> =
+      JSON.parse(localStorage.getItem("cart") || "[]");
+
+    const idStr = String(product.id);
+    const image = Array.isArray(product.images) && product.images.length > 0
+      ? product.images[0]
+      : (product.image || "");
+    const title = product.title || "Item";
+    const price = Number(product.price || 0);
+
+    const idx = cart.findIndex((c) => c.id === idStr);
+    if (idx >= 0) {
+      cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
+    } else {
+      cart.push({ id: idStr, title, price, image, quantity: 1 });
+    }
+    localStorage.setItem("cart", JSON.stringify(cart));
+    navigate("/cart");
   };
+
+  useEffect(() => {
+    const load = async () => {
+      if (!id) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${apiBase}/api/products/${id}`);
+        if (!res.ok) throw new Error(`Failed to load product ${id}`);
+        const data = await res.json();
+        setProduct(data);
+        setSelectedIdx(0);
+      } catch (e: any) {
+        setError(e?.message || "Failed to load product");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id, apiBase]);
+
+  // Prefill contact info
+  useEffect(() => {
+    setContactName(user?.name || "");
+  }, [user]);
+
+  const mainImage = useMemo(() => {
+    if (!product) return "/placeholder-product.jpg";
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      const idx = Math.min(Math.max(selectedIdx, 0), product.images.length - 1);
+      return product.images[idx];
+    }
+    if (product.image) return product.image;
+    return "/placeholder-product.jpg";
+  }, [product, selectedIdx]);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-16">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">← Back</Button>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="container mx-auto px-4 py-16">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">← Back</Button>
+        <p className="text-destructive">{error || "Product not found"}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -29,50 +124,135 @@ export default function ProductDetail() {
       <div className="grid md:grid-cols-2 gap-12">
         {/* Product Image */}
         <div>
-          <img 
-            src={product.image} 
+          <img
+            src={mainImage}
             alt={product.title}
             className="w-full rounded-lg border"
           />
+          {Array.isArray(product.images) && product.images.length > 1 && (
+            <div className="mt-4 grid grid-cols-4 gap-2">
+              {product.images.slice(0, 8).map((img, idx) => (
+                <img
+                  key={idx}
+                  src={img}
+                  alt={`thumb-${idx}`}
+                  onClick={() => setSelectedIdx(idx)}
+                  className={
+                    "h-20 w-full object-cover rounded border cursor-pointer " +
+                    (idx === selectedIdx ? "ring-2 ring-thrift-green" : "hover:opacity-90")
+                  }
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Product Info */}
         <div className="space-y-6">
           <div>
             <h1 className="text-4xl font-bold mb-2">{product.title}</h1>
-            <p className="text-gray-600">{product.brand}</p>
+            {product.brand && <p className="text-gray-600">{product.brand}</p>}
           </div>
 
           <div className="flex items-center gap-4">
             <span className="text-3xl font-bold text-thrift-green">
-              ${product.price.toFixed(2)}
+              NPR {Number(product.price || 0).toLocaleString()}
             </span>
-            {product.originalPrice && (
+            {!!product.originalPrice && (
               <span className="text-xl text-gray-400 line-through">
-                ${product.originalPrice.toFixed(2)}
+                NPR {Number(product.originalPrice).toLocaleString()}
               </span>
             )}
           </div>
 
           <div className="space-y-2">
-            <p><span className="font-semibold">Condition:</span> {product.condition}</p>
-            <p><span className="font-semibold">Size:</span> {product.size}</p>
-            <p><span className="font-semibold">Seller:</span> {product.seller}</p>
+            {product.condition && (
+              <p><span className="font-semibold">Condition:</span> {product.condition}</p>
+            )}
+            {product.size && (
+              <p><span className="font-semibold">Size:</span> {product.size}</p>
+            )}
+            {product.location && (
+              <p><span className="font-semibold">Location:</span> {product.location}</p>
+            )}
+            {product.seller && (
+              <p className="select-none">
+                <span className="font-semibold">Seller:</span> {product.seller}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              For privacy, phone numbers and emails aren’t shown. Use the message button to contact the seller.
+            </p>
           </div>
 
-          <p className="text-gray-700">{product.description}</p>
+          {product.description && (
+            <p className="text-gray-700">{product.description}</p>
+          )}
 
           <div className="flex gap-4">
-            <Button className="flex-1 bg-thrift-green hover:bg-thrift-green/90">
+            <Button className="flex-1 bg-thrift-green hover:bg-thrift-green/90" onClick={addToCart}>
               <ShoppingCart className="w-5 h-5 mr-2" />
               Add to Cart
             </Button>
-            <Button variant="outline" size="icon">
-              <Heart className="w-5 h-5" />
+            <Button variant="outline" onClick={() => setContactOpen(true)}>
+              Message Seller
             </Button>
           </div>
         </div>
       </div>
+
+      {banner && (
+        <div className="mt-6 text-sm text-thrift-green bg-thrift-green/10 border border-thrift-green/20 rounded p-3">
+          {banner}
+        </div>
+      )}
+
+      <Dialog open={contactOpen} onOpenChange={setContactOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contact Seller</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Your name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+            <Textarea rows={4} placeholder="Write your message..." value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContactOpen(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!contactMessage.trim()) return;
+                setSending(true);
+                try {
+                  const resp = await fetch(`${apiBase}/api/products/${id}/message`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ name: contactName || undefined, message: contactMessage.trim() }),
+                  });
+                  if (!resp.ok) {
+                    const t = await resp.text();
+                    throw new Error(t || 'Failed to send');
+                  }
+                  setContactOpen(false);
+                  setBanner("Message sent to the seller. You'll get a reply soon.");
+                  setTimeout(() => setBanner(null), 3000);
+                  setContactMessage("");
+                } catch (e: any) {
+                  setBanner(e?.message || 'Failed to send message');
+                  setTimeout(() => setBanner(null), 3000);
+                } finally {
+                  setSending(false);
+                }
+              }}
+              disabled={sending || !contactMessage.trim()}
+            >
+              {sending ? "Sending..." : "Send Message"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

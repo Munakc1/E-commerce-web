@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingCart } from "lucide-react";
@@ -30,21 +31,74 @@ const Shop = () => {
   const [isVisible, setIsVisible] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQ = (searchParams.get('q') || '').trim();
+  const initialCat = (searchParams.get('category') || 'all').toLowerCase();
+  const [searchQuery, setSearchQuery] = useState(initialQ);
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-  // Fetch listings from localStorage
+  // Fetch listings from backend products; fallback to localStorage
   useEffect(() => {
-    const storedListings = JSON.parse(localStorage.getItem("listings") || "[]");
-    setListings(storedListings);
-    setFilteredListings(storedListings);
-  }, []);
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/products`);
+        if (!res.ok) throw new Error("backend not available");
+        const data = await res.json();
+        const items: Listing[] = (Array.isArray(data) ? data : []).map((p: any) => ({
+          id: String(p.id),
+          title: p.title,
+          description: p.description || "",
+          category: (p.category || p.Category || '').toLowerCase() || "",
+          brand: p.brand || "",
+          condition: p.productCondition || p.condition || "Good",
+          size: p.size || "",
+          price: Number(p.price ?? 0),
+          originalPrice: p.originalPrice != null ? Number(p.originalPrice) : null,
+          location: p.location || "",
+          images: Array.isArray(p.images)
+            ? p.images
+            : (typeof p.images === 'string' && p.images.startsWith('[')
+                ? JSON.parse(p.images)
+                : (p.image ? [p.image] : [])),
+          createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+        }));
+        setListings(items);
+        setFilteredListings(items);
+      } catch (e) {
+        // fallback to localStorage if server not reachable
+        const storedListings = JSON.parse(localStorage.getItem("listings") || "[]");
+        setListings(storedListings);
+        setFilteredListings(storedListings);
+      }
+    };
+    fetchProducts();
+  }, [apiBase]);
+
+  // Keep category and search in sync with URL (on navigation/back/links)
+  useEffect(() => {
+    const qParam = (searchParams.get('q') || '').trim();
+    const catParam = (searchParams.get('category') || 'all').toLowerCase();
+    if (qParam !== searchQuery) setSearchQuery(qParam);
+    if (catParam !== categoryFilter) setCategoryFilter(catParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Apply filters and sorting
   useEffect(() => {
     let updatedListings = [...listings];
 
+    // Apply search query (title, description, brand, category, location)
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      updatedListings = updatedListings.filter((l) => {
+        const hay = `${l.title} ${l.description} ${l.brand} ${l.category} ${l.location}`.toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
     // Filter by category
     if (categoryFilter !== "all") {
-      updatedListings = updatedListings.filter((listing) => listing.category === categoryFilter);
+      updatedListings = updatedListings.filter((listing) => String(listing.category).toLowerCase() === categoryFilter);
     }
 
     // Filter by price range
@@ -65,7 +119,39 @@ const Shop = () => {
     }
 
     setFilteredListings(updatedListings);
-  }, [categoryFilter, priceFilter, sortOrder, listings]);
+  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery]);
+
+  // Reflect category/search in URL for shareability (only when changed)
+  useEffect(() => {
+    const curQ = (searchParams.get('q') || '').trim();
+    const curC = (searchParams.get('category') || 'all').toLowerCase();
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (categoryFilter && categoryFilter !== 'all') {
+      if (curC !== categoryFilter) {
+        next.set('category', categoryFilter);
+        changed = true;
+      }
+    } else if (searchParams.has('category')) {
+      next.delete('category');
+      changed = true;
+    }
+
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      if (curQ !== trimmed) {
+        next.set('q', trimmed);
+        changed = true;
+      }
+    } else if (searchParams.has('q')) {
+      next.delete('q');
+      changed = true;
+    }
+
+    if (changed) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, searchQuery, searchParams]);
 
   // Intersection observer for animations
   useEffect(() => {
@@ -137,10 +223,19 @@ const Shop = () => {
           )}
         >
           <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Search</label>
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search items, brands, locations..."
+              aria-label="Search listings"
+            />
+          </div>
+          <div className="flex-1">
             <label className="text-sm font-medium mb-2 block">Category</label>
             <Select
               value={categoryFilter}
-              onValueChange={setCategoryFilter}
+              onValueChange={(v) => setCategoryFilter(v)}
               aria-label="Filter by category"
             >
               <SelectTrigger>
@@ -202,7 +297,7 @@ const Shop = () => {
                 isVisible && "opacity-100"
               )}
             >
-              <p>No items available. Be the first to list something!</p>
+              <p>No items found. Try adjusting your filters or search.</p>
               <Button
                 asChild
                 className="mt-4 bg-thrift-green hover:bg-thrift-green/90"
@@ -220,8 +315,17 @@ const Shop = () => {
               {filteredListings.map((listing, index) => (
                 <Card
                   key={listing.id}
-                  className="border-none shadow-sm hover:shadow-lg transition-shadow"
+                  className="group cursor-pointer border rounded-lg shadow-sm hover:shadow-lg transition duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-thrift-green"
                   style={{ animationDelay: `${index * 100}ms` }}
+                  tabIndex={0}
+                  role="link"
+                  onClick={() => navigate(`/product/${listing.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/product/${listing.id}`);
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     <img
@@ -229,7 +333,7 @@ const Shop = () => {
                       alt={listing.title}
                       className="h-48 w-full object-cover rounded-lg mb-4"
                     />
-                    <h3 className="text-lg font-semibold mb-2 truncate">
+                    <h3 className="text-lg font-semibold mb-2 truncate group-hover:text-thrift-green">
                       {listing.title}
                     </h3>
                     <p className="text-thrift-green font-bold mb-2">
@@ -243,7 +347,7 @@ const Shop = () => {
                     </p>
                     <Button
                       className="w-full bg-thrift-green hover:bg-thrift-green/90"
-                      onClick={() => addToCart(listing)}
+                      onClick={(e) => { e.stopPropagation(); addToCart(listing); }}
                       aria-label={`Add ${listing.title} to cart`}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />

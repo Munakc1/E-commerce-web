@@ -62,7 +62,8 @@ export default function Checkout() {
   }, []);
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const taxes = subtotal * 0.13;
+  const TAX_RATE = Number(import.meta.env.VITE_TAX_RATE ?? 0);
+  const taxes = subtotal * TAX_RATE;
   const shipping = cartItems.length > 0 ? 200 : 0;
   const total = subtotal + taxes + shipping;
 
@@ -292,10 +293,12 @@ export default function Checkout() {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>NPR {subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Taxes (13%)</span>
-                    <span>NPR {taxes.toLocaleString()}</span>
-                  </div>
+                  {taxes > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Taxes ({Math.round(TAX_RATE * 100)}%)</span>
+                      <span>NPR {taxes.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping</span>
                     <span>NPR {shipping.toLocaleString()}</span>

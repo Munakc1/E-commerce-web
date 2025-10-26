@@ -1,16 +1,108 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingBag, User, Heart, Menu, X } from "lucide-react";
-import { useAuth } from "@/context/AuthContext"; // added
+import { Search, ShoppingBag, User, Heart, Menu, X, MessageSquare, Bell } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [cartItems] = useState(0);
-  const { isAuthenticated, user, logout } = useAuth(); // added
+  const { isAuthenticated, user, token, logout } = useAuth(); // include token
   const navigate = useNavigate();
+  const apiBase = useMemo(() => import.meta.env.VITE_API_URL || 'http://localhost:5000', []);
+
+  // notifications state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read_at).length, [notifications]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  const [sse, setSse] = useState<EventSource | null>(null);
+
+  const loadNotifications = async () => {
+    if (!isAuthenticated || !token) return;
+    setNotifLoading(true);
+    setNotifError(null);
+    try {
+      const resp = await fetch(`${apiBase}/api/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error('Failed to fetch notifications');
+      const data = await resp.json();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setNotifError(e?.message || 'Failed to fetch notifications');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    // optional: refresh periodically
+    const id = setInterval(() => { loadNotifications(); }, 60000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, token, apiBase]);
+
+  // Real-time notifications via SSE
+  useEffect(() => {
+    if (!isAuthenticated || !token) {
+      if (sse) { try { sse.close(); } catch {} setSse(null); }
+      return;
+    }
+    // Close previous if any
+    if (sse) { try { sse.close(); } catch {} }
+    const es = new EventSource(`${apiBase}/api/notifications/stream?token=${encodeURIComponent(token)}`);
+    es.addEventListener('notification', (evt: MessageEvent) => {
+      try {
+        const n = JSON.parse(evt.data);
+        // Prepend new notification, limit to 50
+        setNotifications(prev => [n, ...prev].slice(0, 50));
+      } catch {}
+    });
+    es.addEventListener('bootstrap', (evt: MessageEvent) => {
+      try {
+        const list = JSON.parse(evt.data);
+        if (Array.isArray(list)) setNotifications(list);
+      } catch {}
+    });
+    es.onerror = () => {
+      // auto-close on error; will retry on next effect or via poll
+      try { es.close(); } catch {}
+    };
+    setSse(es);
+    return () => { try { es.close(); } catch {}; setSse(null); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, token, apiBase]);
+
+  const markAllRead = async () => {
+    const ids = notifications.filter(n => !n.read_at).map(n => n.id);
+    if (ids.length === 0) return;
+    try {
+      await fetch(`${apiBase}/api/notifications/mark-read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids }),
+      });
+      // update local state
+      setNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read_at: new Date().toISOString() } : n));
+    } catch (e) {
+      // ignore non-critical errors
+    }
+  };
 
   const publicAllowed = new Set(["/", "/about", "/contact"]);
   const navLinks = [
@@ -73,11 +165,84 @@ export const Navbar = () => {
                 <Heart className="w-5 h-5" />
               </Link>
             </Button>
+            {/* Notifications */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))] hover:text-white" onClick={() => { if (!notifications.length) loadNotifications(); }}>
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
+                      {unreadCount}
+                    </Badge>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel className="flex items-center justify-between">
+                  <span>Notifications</span>
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={markAllRead}>Mark all read</Button>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {notifLoading && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
+                )}
+                {notifError && (
+                  <div className="px-3 py-2 text-sm text-destructive">{notifError}</div>
+                )}
+                {!notifLoading && !notifError && notifications.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">No notifications</div>
+                )}
+                {!notifLoading && !notifError && notifications.slice(0, 10).map((n) => {
+                  let data: any = {};
+                  try { data = n.payload ? JSON.parse(n.payload) : {}; } catch {}
+                  const title = data?.title || 'Update';
+                  const preview = data?.preview || '';
+                  const productId = data?.productId;
+                  const isUnread = !n.read_at;
+                  return (
+                    <DropdownMenuItem
+                      key={n.id}
+                      className={`flex items-start gap-2 ${isUnread ? 'bg-[hsl(var(--thrift-green))]/10' : ''} hover:bg-[hsl(var(--thrift-green))] hover:text-white`}
+                      onClick={async () => {
+                        // mark single as read locally
+                        if (isUnread) {
+                          setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                          try {
+                            await fetch(`${apiBase}/api/notifications/mark-read`, {
+                              method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ids: [n.id] })
+                            });
+                          } catch {}
+                        }
+                        if (n.type === 'message') {
+                          navigate('/messages');
+                        } else if (productId) {
+                          navigate(`/product/${productId}`);
+                        }
+                      }}
+                    >
+                      <div className="flex-1">
+                        <div className="text-sm font-medium truncate">{title}</div>
+                        {preview && <div className="text-xs text-muted-foreground truncate">{preview}</div>}
+                        <div className="text-[10px] text-muted-foreground mt-1">{new Date(n.created_at).toLocaleString()}</div>
+                      </div>
+                      {isUnread && <span className="mt-1 inline-block h-2 w-2 rounded-full bg-thrift-green" />}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+              <Link to={resolveHref("/messages")}>
+                <MessageSquare className="w-5 h-5" />
+              </Link>
+            </Button>
             <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream relative">
               <Link to={resolveHref("/cart")}>
                 <ShoppingBag className="w-5 h-5" />
                 {cartItems > 0 && (
-                  <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
+                  <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
                     {cartItems}
                   </Badge>
                 )}
@@ -154,12 +319,18 @@ export const Navbar = () => {
                     Wishlist
                   </Link>
                 </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to={resolveHref("/messages")}>
+                    <MessageSquare className="w-5 h-5 mr-2" />
+                    Messages
+                  </Link>
+                </Button>
                 <Button asChild variant="ghost" size="sm" className="relative">
                   <Link to={resolveHref("/cart")}>
                     <ShoppingBag className="w-5 h-5 mr-2" />
                     Cart
                     {cartItems > 0 && (
-                      <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-xs">
+                      <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
                         {cartItems}
                       </Badge>
                     )}
