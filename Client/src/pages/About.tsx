@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Leaf, Heart, Users, Recycle, Target, Award, Globe, ArrowRight } from "lucide-react";
+import { Leaf, Heart, Users, Recycle, Target, Award, Globe, ArrowRight, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const About = () => {
@@ -40,6 +40,7 @@ const About = () => {
   const [dynamicStats, setDynamicStats] = useState(stats);
   const [isVisible, setIsVisible] = useState(false);
   const statsRef = useRef<HTMLDivElement>(null);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   useEffect(() => {
     const donations = JSON.parse(localStorage.getItem("donations") || "[]");
@@ -107,23 +108,87 @@ const About = () => {
 
   return (
     <>
-      <section className="py-20 bg-gradient-to-br from-thrift-cream to-background">
-        <div className="container mx-auto px-4 text-center">
-          <Badge
-            className="bg-thrift-warm/10 text-thrift-earth border-thrift-warm/20 mb-6"
-            aria-label="About ThriftSy"
-          >
-            <Leaf className="w-4 h-4 mr-2" />
-            About ThriftSy
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            Revolutionizing Fashion
-            <span className="text-thrift-green block">in Nepal</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            ThriftSy is Nepal's first comprehensive platform for second-hand clothes, 
-            combining e-commerce with social impact through our unique donation system.
-          </p>
+      <section className="relative bg-gradient-to-br from-thrift-cream via-background to-thrift-cream min-h-[60vh] flex items-center">
+        <div className="container mx-auto px-4">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Content */}
+            <div className="space-y-8">
+              {/* Badge */}
+              <Badge className="bg-thrift-warm/10 text-black border-thrift-warm/20 hover:bg-thrift-warm/20 transition-colors cursor-pointer">
+                <Leaf className="w-4 h-4 mr-2" />
+                About ThriftSy
+              </Badge>
+
+              {/* Heading */}
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-6xl font-bold leading-tight">
+                  Revolutionizing Fashion in
+                  <span className="text-thrift-green relative ml-2">
+                    Nepal
+                    <div className="absolute -bottom-2 left-0 w-full h-1 bg-thrift-warm/30 rounded-full"></div>
+                  </span>
+                </h1>
+                <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-lg">
+                  ThriftSy is Nepal's first comprehensive platform for second-hand clothes,
+                  combining e-commerce with social impact through our unique donation system.
+                </p>
+              </div>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button asChild size="lg" className="bg-thrift-green hover:bg-thrift-green/90 text-white transition-all">
+                  <Link to="/shop">
+                    Start Shopping
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="border-thrift-green text-thrift-green hover:bg-thrift-green hover:text-white transition-all">
+                  <Link to="/sell">
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Become a Seller
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Hero Image */}
+            <div className="relative">
+              <div className="relative z-10">
+                <img
+                  src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                  alt="Sustainable fashion collection"
+                  className={`rounded-2xl shadow-2xl w-full transition-opacity duration-500 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  onLoad={() => setIsImageLoaded(true)}
+                />
+                {!isImageLoaded && (
+                  <div className="rounded-2xl shadow-2xl w-full h-64 bg-gray-200 animate-pulse"></div>
+                )}
+              </div>
+
+              {/* Floating Cards */}
+              <div className="absolute -top-2 -left-2 lg:-top-4 lg:-left-4 bg-white p-3 lg:p-4 rounded-xl shadow-lg border z-20 transition-all hover:scale-105">
+                <div className="flex items-center gap-2 lg:gap-3">
+                  <div className="w-8 h-8 lg:w-12 lg:h-12 bg-thrift-green rounded-full flex items-center justify-center">
+                    <Leaf className="w-4 h-4 lg:w-6 lg:h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-thrift-green text-sm lg:text-base">100%</div>
+                    <div className="text-xs lg:text-sm text-muted-foreground">Sustainable</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute -bottom-2 -right-2 lg:-bottom-4 lg:-right-4 bg-white p-3 lg:p-4 rounded-xl shadow-lg border z-20 transition-all hover:scale-105">
+                <div className="text-center">
+                  <div className="text-xl lg:text-2xl font-bold text-thrift-warm">85%</div>
+                  <div className="text-xs lg:text-sm text-muted-foreground">Waste Reduced</div>
+                </div>
+              </div>
+
+              {/* Background Decoration */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-thrift-green/5 rounded-full -z-10"></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -139,10 +204,10 @@ const About = () => {
                 )}
                 style={{ animationDelay: `${index * 150}ms` }}
               >
-                <div className="w-16 h-16 bg-thrift-green/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <stat.icon className="w-8 h-8 text-thrift-green" aria-hidden="true" />
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-[hsl(var(--thrift-green))]/15 dark:bg-[hsl(var(--thrift-green))]/25">
+                  <stat.icon className="w-8 h-8 text-[hsl(var(--thrift-green))]" aria-hidden="true" />
                 </div>
-                <div className="text-3xl font-bold text-thrift-green mb-2">
+                <div className="text-3xl font-bold text-[hsl(var(--thrift-green))] mb-2">
                   {isVisible ? stat.displayValue : "0"}
                 </div>
                 <div className="text-muted-foreground">{stat.label}</div>
@@ -181,17 +246,17 @@ const About = () => {
             </div>
             <div className="relative">
               <img
-                src="public/favicon.png"
+                src="favicon.png"
                 alt="Sustainable fashion mission"
                 className="rounded-2xl shadow-lg"
               />
-              <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-xl shadow-lg border">
+              <div className="absolute -bottom-6 -left-6 bg-card text-foreground p-6 rounded-xl shadow-lg border border-[hsl(var(--thrift-green))]/20">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-thrift-green rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-[hsl(var(--thrift-green))] rounded-full flex items-center justify-center">
                     <Recycle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <div className="font-bold text-thrift-green">85%</div>
+                    <div className="font-bold text-[hsl(var(--thrift-green))]">85%</div>
                     <div className="text-sm text-muted-foreground">Waste Reduced</div>
                   </div>
                 </div>
@@ -221,8 +286,8 @@ const About = () => {
                 style={{ animationDelay: `${index * 150}ms` }}
               >
                 <CardContent className="p-6 text-center">
-                  <div className="w-16 h-16 bg-thrift-green/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <value.icon className="w-8 h-8 text-thrift-green" aria-hidden="true" />
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-[hsl(var(--thrift-green))]/15 dark:bg-[hsl(var(--thrift-green))]/25">
+                    <value.icon className="w-8 h-8 text-[hsl(var(--thrift-green))]" aria-hidden="true" />
                   </div>
                   <h3 className="font-bold mb-3">{value.title}</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
@@ -267,7 +332,7 @@ const About = () => {
                 )}
                 style={{ animationDelay: `${index * 150}ms` }}
               >
-                <div className="w-20 h-20 bg-thrift-green rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="w-20 h-20 bg-[hsl(var(--thrift-green))] rounded-full flex items-center justify-center mx-auto mb-6">
                   <span className="text-2xl font-bold text-white">{item.step}</span>
                 </div>
                 <h3 className="text-xl font-bold mb-3">{item.title}</h3>

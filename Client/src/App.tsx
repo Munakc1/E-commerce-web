@@ -27,7 +27,7 @@ const App = () => (
     <Router>
       <div className="min-h-screen flex flex-col bg-background">
   {/* Global toast renderer (themed) */}
-  <AppToaster position="top-right" />
+  <AppToaster position="bottom-right" duration={2500} />
         <Navbar />
         <main className="flex-1">
           <Routes>

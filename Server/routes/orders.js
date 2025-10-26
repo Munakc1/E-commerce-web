@@ -201,9 +201,10 @@ router.get('/sold', async (req, res) => {
   try {
     // Find orders that have seller_sales for this seller
     const [orderRows] = await pool.query(
-      `SELECT DISTINCT s.order_id, o.created_at, o.user_id AS buyer_id
+      `SELECT DISTINCT s.order_id, o.created_at, o.user_id AS buyer_id, u.name AS buyer_name
        FROM seller_sales s
        JOIN orders o ON o.id = s.order_id
+       LEFT JOIN users u ON u.id = o.user_id
        WHERE s.seller_id = ?
        ORDER BY o.created_at DESC`,
       [userId]
@@ -234,6 +235,7 @@ router.get('/sold', async (req, res) => {
       id: o.order_id,
       created_at: o.created_at,
       buyer_id: o.buyer_id,
+      buyer_name: o.buyer_name || null,
       items: itemsByOrder.get(o.order_id) || [],
     })).filter(o => o.items.length > 0);
     res.json(out);

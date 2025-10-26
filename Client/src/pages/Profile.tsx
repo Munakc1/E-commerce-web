@@ -96,18 +96,22 @@ export default function Profile() {
   const [loadingSold, setLoadingSold] = useState(false);
   const [expandedMy, setExpandedMy] = useState<Set<number | string>>(new Set());
   const [expandedSold, setExpandedSold] = useState<Set<number | string>>(new Set());
+  const [hasLoadedMy, setHasLoadedMy] = useState(false);
+  const [hasLoadedSold, setHasLoadedSold] = useState(false);
 
   const toggleExpandedMy = (id: number | string) => {
     setExpandedMy(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const key = String(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
   const toggleExpandedSold = (id: number | string) => {
     setExpandedSold(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const key = String(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -139,7 +143,7 @@ export default function Profile() {
       setMyOrders(normalized);
     } catch {
       setMyOrders([]);
-    } finally { setLoadingMy(false); }
+    } finally { setLoadingMy(false); setHasLoadedMy(true); }
   }, [apiBaseMemo, headers, token]);
 
   const loadSold = useCallback(async () => {
@@ -157,7 +161,7 @@ export default function Profile() {
       setSoldOrders(normalized);
     } catch {
       setSoldOrders([]);
-    } finally { setLoadingSold(false); }
+    } finally { setLoadingSold(false); setHasLoadedSold(true); }
   }, [apiBaseMemo, headers, token]);
 
   useEffect(() => {
@@ -296,17 +300,22 @@ export default function Profile() {
       {/* Orders placed by me */}
       <Card className="mt-6 border-none shadow-sm bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">My Orders {myOrders.length > 0 && (<Badge variant="outline" className="ml-2">{myOrders.length}</Badge>)}</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            My Orders (I placed)
+            {myOrders.length > 0 && (<Badge variant="outline">{myOrders.length}</Badge>)}
+            {loadingMy && hasLoadedMy && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Orders that you placed on other sellers’ listings.</p>
         </CardHeader>
         <CardContent>
-          {loadingMy ? (
+          {!hasLoadedMy && loadingMy ? (
             <p>Loading orders...</p>
           ) : myOrders.length === 0 ? (
             <div className="text-muted-foreground">No orders yet. <a href="/shop" className="text-thrift-green hover:underline">Shop now</a></div>
           ) : (
             <div className="space-y-4">
               {myOrders.map((o) => (
-                <div key={o.id || o.ID || o.order_id} className="border rounded">
+                <div key={String(o.id || o.ID || o.order_id)} className="border rounded">
                   <button
                     className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
                     onClick={() => toggleExpandedMy(o.id || o.ID || o.order_id)}
@@ -320,10 +329,10 @@ export default function Profile() {
                         {o.payment_status || o.paymentStatus || 'pending'}
                       </Badge>
                       <span className="font-semibold text-thrift-green">NPR {Number(o.total).toLocaleString()}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedMy.has(o.id || o.ID || o.order_id) ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedMy.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`} />
                     </div>
                   </button>
-                  {expandedMy.has(o.id || o.ID || o.order_id) && (
+                  {expandedMy.has(String(o.id || o.ID || o.order_id)) && (
                   <div className="px-3 pb-3 text-sm space-y-2">
                     {o.shipping_address && (
                       <div className="text-muted-foreground">
@@ -350,17 +359,22 @@ export default function Profile() {
       {/* Orders for my products (items others ordered from me) */}
       <Card className="mt-6 border-none shadow-sm bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">Orders Sold {soldOrders.length > 0 && (<Badge variant="outline" className="ml-2">{soldOrders.length}</Badge>)}</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            Orders for My Listings (Others bought)
+            {soldOrders.length > 0 && (<Badge variant="outline">{soldOrders.length}</Badge>)}
+            {loadingSold && hasLoadedSold && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Orders that include items from your listings. The total shown is for your items in that order.</p>
         </CardHeader>
         <CardContent>
-          {loadingSold ? (
+          {!hasLoadedSold && loadingSold ? (
             <p>Loading sold items...</p>
           ) : soldOrders.length === 0 ? (
             <p className="text-muted-foreground">No items sold yet.</p>
           ) : (
             <div className="space-y-4">
               {soldOrders.map((o) => (
-                <div key={o.id || o.ID || o.order_id} className="border rounded">
+                <div key={String(o.id || o.ID || o.order_id)} className="border rounded">
                   <button
                     className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
                     onClick={() => toggleExpandedSold(o.id || o.ID || o.order_id)}
@@ -370,12 +384,12 @@ export default function Profile() {
                       <div className="text-sm text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</div>
                     </div>
                     <div className="text-right flex items-center gap-3">
-                      <div className="text-sm text-muted-foreground">Buyer ID: {o.buyer_id ?? 'N/A'}</div>
+                      <div className="text-sm text-muted-foreground">Buyer: {o.buyer_name || `ID ${o.buyer_id ?? 'N/A'}`}</div>
                       <span className="font-semibold text-thrift-green">NPR {((o.items || []).reduce((s: number, it: any) => s + Number(it.price || 0) * Number(it.quantity || 1), 0)).toLocaleString()}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedSold.has(o.id || o.ID || o.order_id) ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedSold.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`} />
                     </div>
                   </button>
-                  {expandedSold.has(o.id || o.ID || o.order_id) && (
+                  {expandedSold.has(String(o.id || o.ID || o.order_id)) && (
                   <div className="px-3 pb-3 text-sm space-y-1">
                     {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
                       <div key={i} className="flex justify-between">
