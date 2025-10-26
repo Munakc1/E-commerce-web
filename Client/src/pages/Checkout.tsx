@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 type CartItem = {
   id: string;
@@ -124,16 +125,24 @@ export default function Checkout() {
       const created = await resp.json();
 
       // Clear cart and show confirmation
-  localStorage.setItem("cart", JSON.stringify([]));
-  try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
+      localStorage.setItem("cart", JSON.stringify([]));
+      try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
       setCartItems([]);
-      // navigate to order confirmation page if you have one
-      // navigate(`/orders/${created.insertId || created.id}`);
-      alert("Order placed and saved. Order id: " + (created.insertId || created.id || created.orderId));
-      window.location.assign("/");
+      // Emit a lightweight event so Profile can refresh immediately
+      try {
+        const newOrderId = created.insertId || created.id || created.orderId;
+        window.dispatchEvent(new CustomEvent('orderPlaced', { detail: { id: newOrderId, total, items: payload.items } }));
+      } catch {}
+      toast.success("Order placed successfully", {
+        description: `Order ID: ${created.insertId || created.id || created.orderId || "N/A"}`,
+      });
+      // Navigate home (SPA) so the toast remains visible
+      navigate("/");
     } catch (e) {
       console.error(e);
-      alert("Payment / save failed. See console for details.");
+      toast.error("Payment or save failed", {
+        description: "Please try again or check the console for details.",
+      });
     } finally {
       setIsSubmitting(false);
     }

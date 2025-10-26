@@ -12,13 +12,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       toastOptions={{
         classNames: {
+          // Base toast styling: solid thrift-green as requested
           toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
+            "group toast group-[.toaster]:bg-[hsl(var(--thrift-green))] group-[.toaster]:text-white group-[.toaster]:border-[hsl(var(--thrift-green))] group-[.toaster]:shadow-lg",
+          description: "group-[.toast]:text-white/90",
           actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+            "group-[.toast]:bg-white group-[.toast]:text-[hsl(var(--thrift-green))]",
           cancelButton:
-            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+            "group-[.toast]:bg-white/20 group-[.toast]:text-white hover:group-[.toast]:bg-white/30",
+          // Keep success aligned with the base
+          success:
+            "group-[.toaster]:bg-[hsl(var(--thrift-green))] group-[.toaster]:text-white group-[.toaster]:border-[hsl(var(--thrift-green))]",
         },
       }}
       {...props}

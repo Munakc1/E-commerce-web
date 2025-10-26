@@ -119,6 +119,24 @@ async function initDb() {
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
+    // Seller-centric sales table to avoid complex joins for "Orders Sold"
+    `CREATE TABLE IF NOT EXISTS seller_sales (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      seller_id INT UNSIGNED NOT NULL,
+      order_id INT UNSIGNED NOT NULL,
+      buyer_id INT UNSIGNED NULL,
+      product_id INT UNSIGNED NULL,
+      title VARCHAR(255) NOT NULL,
+      price DECIMAL(12,2) NOT NULL,
+      quantity INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_seller (seller_id),
+      KEY idx_seller_order (seller_id, order_id),
+      CONSTRAINT fk_seller_sales_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      CONSTRAINT fk_seller_sales_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
     // Messages (in-app)
     `CREATE TABLE IF NOT EXISTS messages (
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,

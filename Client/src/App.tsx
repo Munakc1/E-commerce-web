@@ -18,6 +18,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import ProductDetail from "./pages/ProductDetail";
 import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
+import { Toaster as AppToaster } from "@/components/ui/sonner";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,8 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <Router>
       <div className="min-h-screen flex flex-col bg-background">
+  {/* Global toast renderer (themed) */}
+  <AppToaster position="top-right" />
         <Navbar />
         <main className="flex-1">
           <Routes>

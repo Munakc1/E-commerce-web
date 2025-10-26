@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 interface Listing {
   id: string;
@@ -232,6 +233,7 @@ const Shop = () => {
     try {
       window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
+    toast.success("Added to cart", { description: listing.title });
   };
 
   const toggleWishlist = async (id: string) => {
@@ -243,6 +245,7 @@ const Shop = () => {
           if (!resp.ok) throw new Error('Failed');
           setWishlistIds(prev => { const next = new Set(prev); next.delete(pid); return next; });
           window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: Math.max(0, wishlistIds.size - 1) } }));
+          toast("Removed from wishlist");
           return;
         } else {
           const resp = await fetch(`${apiBase}/api/wishlist`, {
@@ -253,16 +256,24 @@ const Shop = () => {
           if (!resp.ok) throw new Error('Failed');
           setWishlistIds(prev => { const next = new Set(prev); next.add(pid); return next; });
           window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: wishlistIds.size + 1 } }));
+          toast.success("Added to wishlist");
           return;
         }
       } catch {
+        toast.error("Wishlist update failed", { description: "Using local fallback." });
         // fall back to local behavior on failure
       }
     }
     // Fallback local toggle
     setWishlistIds((prev) => {
       const next = new Set(prev);
-      if (next.has(pid)) next.delete(pid); else next.add(pid);
+      if (next.has(pid)) {
+        next.delete(pid);
+        toast("Removed from wishlist");
+      } else {
+        next.add(pid);
+        toast.success("Added to wishlist");
+      }
       try {
         localStorage.setItem("wishlist", JSON.stringify(Array.from(next)));
         window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: next.size } }));

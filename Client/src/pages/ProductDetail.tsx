@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 type Product = {
   id: string | number;
@@ -63,8 +64,7 @@ export default function ProductDetail() {
     try {
       window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
-    setBanner("Added to cart.");
-    setTimeout(() => setBanner(null), 2000);
+    toast.success("Added to cart", { description: title });
   };
 
   useEffect(() => {

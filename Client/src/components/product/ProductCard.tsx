@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ProductCardProps {
   id: string;
@@ -86,6 +87,7 @@ export const ProductCard = ({
     try {
       window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
     } catch {}
+    toast.success("Added to cart", { description: title });
   };
 
   const handleToggleWishlist = () => {

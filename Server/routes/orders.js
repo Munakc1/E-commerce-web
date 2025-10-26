@@ -76,6 +76,40 @@ router.post("/", async (req, res) => {
         `INSERT INTO order_items (order_id, product_id, title, price, quantity) VALUES ${placeholders.join(", ")}`,
         params
       );
+
+      // Also persist seller-centric sales rows for quick seller queries
+      try {
+        // Map productId -> seller_id
+        const productIds = items.map(it => it.productId).filter(Boolean);
+        let sellerByProduct = new Map();
+        if (productIds.length > 0) {
+          const ph = productIds.map(() => '?').join(',');
+          const [prodRows] = await conn.query(`SELECT id, user_id FROM products WHERE id IN (${ph})`, productIds);
+          for (const r of Array.isArray(prodRows) ? prodRows : []) {
+            sellerByProduct.set(Number(r.id), r.user_id || null);
+          }
+        }
+        const salesValues = [];
+        const salesParams = [];
+        for (const it of items) {
+          const pid = it.productId ? Number(it.productId) : null;
+          const sellerId = pid ? (sellerByProduct.get(pid) || null) : null;
+          if (!sellerId) continue; // skip items without known seller
+          const title = it.title || it.name || 'Unknown';
+          const price = Number(it.price || 0);
+          const quantity = Number(it.quantity || 1);
+          salesValues.push('(?, ?, ?, ?, ?, ?)');
+          salesParams.push(sellerId, orderId, authUserId != null ? authUserId : (userId || null), pid, title, price, quantity);
+        }
+        if (salesValues.length > 0) {
+          await conn.query(
+            `INSERT INTO seller_sales (seller_id, order_id, buyer_id, product_id, title, price, quantity) VALUES ${salesValues.join(', ')}`,
+            salesParams
+          );
+        }
+      } catch (e) {
+        console.warn('seller_sales insert warning:', e && e.message ? e.message : e);
+      }
     }
 
     await conn.commit();
@@ -92,14 +126,31 @@ router.post("/", async (req, res) => {
 // optional: list orders (simple)
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT o.*, 
-         (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', oi.id, 'product_id', oi.product_id, 'title', oi.title, 'price', oi.price, 'quantity', oi.quantity))
-          FROM order_items oi WHERE oi.order_id = o.id) AS items
-       FROM orders o
-       ORDER BY o.created_at DESC`
+    const [orders] = await pool.query(
+      `SELECT * FROM orders ORDER BY created_at DESC`
     );
-    res.json(rows);
+    const orderRows = Array.isArray(orders) ? orders : [];
+    if (orderRows.length === 0) return res.json([]);
+
+    const orderIds = orderRows.map(o => o.id);
+    const ph = orderIds.map(() => '?').join(',');
+    const [items] = await pool.query(
+      `SELECT * FROM order_items WHERE order_id IN (${ph}) ORDER BY id ASC`,
+      orderIds
+    );
+    const itemsByOrder = new Map();
+    for (const it of (Array.isArray(items) ? items : [])) {
+      if (!itemsByOrder.has(it.order_id)) itemsByOrder.set(it.order_id, []);
+      itemsByOrder.get(it.order_id).push({
+        id: it.id,
+        product_id: it.product_id,
+        title: it.title,
+        price: it.price,
+        quantity: it.quantity,
+      });
+    }
+    const out = orderRows.map(o => ({ ...o, items: itemsByOrder.get(o.id) || [] }));
+    res.json(out);
   } catch (err) {
     console.error("orders GET error:", err);
     res.status(500).json({ message: "Failed to fetch orders" });
@@ -111,16 +162,32 @@ router.get('/mine', async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   try {
-    const [rows] = await pool.query(
-      `SELECT o.*, 
-          (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', oi.id, 'product_id', oi.product_id, 'title', oi.title, 'price', oi.price, 'quantity', oi.quantity))
-           FROM order_items oi WHERE oi.order_id = o.id) AS items
-       FROM orders o
-       WHERE o.user_id = ?
-       ORDER BY o.created_at DESC`,
+    const [orders] = await pool.query(
+      `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
       [userId]
     );
-    res.json(rows);
+    const orderRows = Array.isArray(orders) ? orders : [];
+    if (orderRows.length === 0) return res.json([]);
+
+    const orderIds = orderRows.map(o => o.id);
+    const ph = orderIds.map(() => '?').join(',');
+    const [items] = await pool.query(
+      `SELECT * FROM order_items WHERE order_id IN (${ph}) ORDER BY id ASC`,
+      orderIds
+    );
+    const itemsByOrder = new Map();
+    for (const it of (Array.isArray(items) ? items : [])) {
+      if (!itemsByOrder.has(it.order_id)) itemsByOrder.set(it.order_id, []);
+      itemsByOrder.get(it.order_id).push({
+        id: it.id,
+        product_id: it.product_id,
+        title: it.title,
+        price: it.price,
+        quantity: it.quantity,
+      });
+    }
+    const out = orderRows.map(o => ({ ...o, items: itemsByOrder.get(o.id) || [] }));
+    res.json(out);
   } catch (err) {
     console.error('orders MINE error:', err);
     res.status(500).json({ message: 'Failed to fetch my orders' });
@@ -132,39 +199,30 @@ router.get('/sold', async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   try {
-    // First, find order ids that have items sold by this user
-    const [orderIdRows] = await pool.query(
-      `SELECT DISTINCT o.id AS order_id
-       FROM orders o
-       JOIN order_items oi ON oi.order_id = o.id
-       JOIN products p ON p.id = oi.product_id
-       WHERE p.user_id = ?
+    // Find orders that have seller_sales for this seller
+    const [orderRows] = await pool.query(
+      `SELECT DISTINCT s.order_id, o.created_at, o.user_id AS buyer_id
+       FROM seller_sales s
+       JOIN orders o ON o.id = s.order_id
+       WHERE s.seller_id = ?
        ORDER BY o.created_at DESC`,
       [userId]
     );
-    const orderIds = Array.isArray(orderIdRows) ? orderIdRows.map(r => r.order_id) : [];
+    const orderIds = Array.isArray(orderRows) ? orderRows.map(r => r.order_id) : [];
     if (orderIds.length === 0) return res.json([]);
 
-    // Fetch those orders
-    const placeholders = orderIds.map(() => '?').join(',');
-    const [orders] = await pool.query(
-      `SELECT * FROM orders WHERE id IN (${placeholders}) ORDER BY created_at DESC`,
-      orderIds
+    const ph = orderIds.map(() => '?').join(',');
+    const [itemRows] = await pool.query(
+      `SELECT s.order_id, s.product_id, s.title, s.price, s.quantity
+       FROM seller_sales s
+       WHERE s.seller_id = ? AND s.order_id IN (${ph})`,
+      [userId, ...orderIds]
     );
 
-    // Fetch only the items from those orders that belong to this seller
-    const [itemRows] = await pool.query(
-      `SELECT oi.*, p.user_id AS seller_id
-       FROM order_items oi
-       JOIN products p ON p.id = oi.product_id
-       WHERE oi.order_id IN (${placeholders}) AND p.user_id = ?`,
-      [...orderIds, userId]
-    );
     const itemsByOrder = new Map();
     for (const it of Array.isArray(itemRows) ? itemRows : []) {
       if (!itemsByOrder.has(it.order_id)) itemsByOrder.set(it.order_id, []);
       itemsByOrder.get(it.order_id).push({
-        id: it.id,
         product_id: it.product_id,
         title: it.title,
         price: it.price,
@@ -172,9 +230,11 @@ router.get('/sold', async (req, res) => {
       });
     }
 
-    const out = (Array.isArray(orders) ? orders : []).map(o => ({
-      ...o,
-      items: itemsByOrder.get(o.id) || [],
+    const out = (Array.isArray(orderRows) ? orderRows : []).map(o => ({
+      id: o.order_id,
+      created_at: o.created_at,
+      buyer_id: o.buyer_id,
+      items: itemsByOrder.get(o.order_id) || [],
     })).filter(o => o.items.length > 0);
     res.json(out);
   } catch (err) {

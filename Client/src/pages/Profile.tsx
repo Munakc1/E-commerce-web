@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Mail, User as UserIcon, Phone, Key, Save, Edit3, Trash2 } from "lucide-react";
+import { Mail, User as UserIcon, Phone, Key, Save, Edit3, Trash2, RefreshCw, ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Profile() {
   const { user, token, login } = useAuth();
@@ -93,37 +94,85 @@ export default function Profile() {
   const [soldOrders, setSoldOrders] = useState<any[]>([]);
   const [loadingMy, setLoadingMy] = useState(false);
   const [loadingSold, setLoadingSold] = useState(false);
+  const [expandedMy, setExpandedMy] = useState<Set<number | string>>(new Set());
+  const [expandedSold, setExpandedSold] = useState<Set<number | string>>(new Set());
+
+  const toggleExpandedMy = (id: number | string) => {
+    setExpandedMy(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleExpandedSold = (id: number | string) => {
+    setExpandedSold(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
+  const apiBaseMemo = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+  const parseMaybeJson = (val: any) => {
+    try {
+      if (!val) return null;
+      return typeof val === 'string' ? JSON.parse(val) : val;
+    } catch {
+      return null;
+    }
+  };
+
+  const loadMy = useCallback(async () => {
+    if (!token) return;
+    setLoadingMy(true);
+    try {
+      const res = await fetch(`${apiBaseMemo}/api/orders/mine`, { headers });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const normalized = (Array.isArray(data) ? data : []).map((o: any) => ({
+        ...o,
+        items: parseMaybeJson(o.items) || [],
+        shipping_address: parseMaybeJson(o.shipping_address) || o.shipping_address || o.shippingAddress || null,
+      }));
+      setMyOrders(normalized);
+    } catch {
+      setMyOrders([]);
+    } finally { setLoadingMy(false); }
+  }, [apiBaseMemo, headers, token]);
+
+  const loadSold = useCallback(async () => {
+    if (!token) return;
+    setLoadingSold(true);
+    try {
+      const res = await fetch(`${apiBaseMemo}/api/orders/sold`, { headers });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const normalized = (Array.isArray(data) ? data : []).map((o: any) => ({
+        ...o,
+        items: parseMaybeJson(o.items) || [],
+        shipping_address: parseMaybeJson(o.shipping_address) || o.shipping_address || o.shippingAddress || null,
+      }));
+      setSoldOrders(normalized);
+    } catch {
+      setSoldOrders([]);
+    } finally { setLoadingSold(false); }
+  }, [apiBaseMemo, headers, token]);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
-    const loadMy = async () => {
-      setLoadingMy(true);
-      try {
-        const res = await fetch(`${apiBase}/api/orders/mine`, { headers });
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        setMyOrders(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setMyOrders([]);
-      } finally { setLoadingMy(false); }
-    };
-    const loadSold = async () => {
-      setLoadingSold(true);
-      try {
-        const res = await fetch(`${apiBase}/api/orders/sold`, { headers });
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        setSoldOrders(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setSoldOrders([]);
-      } finally { setLoadingSold(false); }
-    };
     if (token) {
       loadMy();
       loadSold();
     }
-  }, [token]);
+  }, [token, loadMy, loadSold]);
+
+  // React to order placements happening elsewhere in the app
+  useEffect(() => {
+    const onOrderPlaced = () => { loadMy(); };
+    window.addEventListener('orderPlaced', onOrderPlaced as EventListener);
+    return () => window.removeEventListener('orderPlaced', onOrderPlaced as EventListener);
+  }, [loadMy]);
 
   if (!user) {
     return (
@@ -150,6 +199,9 @@ export default function Profile() {
               {saving ? "Saving..." : "Save"}
             </Button>
           )}
+          <Button variant="ghost" onClick={() => { loadMy(); loadSold(); }} title="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -244,39 +296,50 @@ export default function Profile() {
       {/* Orders placed by me */}
       <Card className="mt-6 border-none shadow-sm bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">My Orders</CardTitle>
+          <CardTitle className="text-lg">My Orders {myOrders.length > 0 && (<Badge variant="outline" className="ml-2">{myOrders.length}</Badge>)}</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMy ? (
             <p>Loading orders...</p>
           ) : myOrders.length === 0 ? (
-            <p className="text-muted-foreground">No orders yet.</p>
+            <div className="text-muted-foreground">No orders yet. <a href="/shop" className="text-thrift-green hover:underline">Shop now</a></div>
           ) : (
             <div className="space-y-4">
               {myOrders.map((o) => (
-                <div key={o.id || o.ID || o.order_id} className="border rounded p-3">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="font-medium">Order #{o.id || o.ID || o.order_id}</div>
-                      <div className="text-sm text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</div>
+                <div key={o.id || o.ID || o.order_id} className="border rounded">
+                  <button
+                    className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
+                    onClick={() => toggleExpandedMy(o.id || o.ID || o.order_id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">Order #{o.id || o.ID || o.order_id}</span>
+                      <span className="text-xs text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-thrift-green">NPR {Number(o.total).toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground">{o.payment_status || o.paymentStatus}</div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className={(o.payment_status || o.paymentStatus) === 'paid' ? 'bg-[hsl(var(--thrift-green))] text-white' : ''}>
+                        {o.payment_status || o.paymentStatus || 'pending'}
+                      </Badge>
+                      <span className="font-semibold text-thrift-green">NPR {Number(o.total).toLocaleString()}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedMy.has(o.id || o.ID || o.order_id) ? 'rotate-180' : ''}`} />
                     </div>
-                  </div>
-                  <div className="mt-2 text-sm">
-                    {o.items && Array.isArray(o.items) ? (
-                      o.items.map((it: any, i: number) => (
+                  </button>
+                  {expandedMy.has(o.id || o.ID || o.order_id) && (
+                  <div className="px-3 pb-3 text-sm space-y-2">
+                    {o.shipping_address && (
+                      <div className="text-muted-foreground">
+                        Ship to: {o.shipping_address.name || '-'} — {o.shipping_address.address || '-'}, {o.shipping_address.city || '-'} • {o.shipping_address.phone || '-'}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
                         <div key={i} className="flex justify-between">
                           <div>{it.title} × {it.quantity}</div>
                           <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-muted-foreground">No items stored</div>
-                    )}
+                      ))}
+                    </div>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -287,7 +350,7 @@ export default function Profile() {
       {/* Orders for my products (items others ordered from me) */}
       <Card className="mt-6 border-none shadow-sm bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">Orders Sold</CardTitle>
+          <CardTitle className="text-lg">Orders Sold {soldOrders.length > 0 && (<Badge variant="outline" className="ml-2">{soldOrders.length}</Badge>)}</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingSold ? (
@@ -297,28 +360,31 @@ export default function Profile() {
           ) : (
             <div className="space-y-4">
               {soldOrders.map((o) => (
-                <div key={o.id || o.ID || o.order_id} className="border rounded p-3">
-                  <div className="flex justify-between">
-                    <div>
+                <div key={o.id || o.ID || o.order_id} className="border rounded">
+                  <button
+                    className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
+                    onClick={() => toggleExpandedSold(o.id || o.ID || o.order_id)}
+                  >
+                    <div className="flex items-center gap-3">
                       <div className="font-medium">Order #{o.id || o.ID || o.order_id}</div>
                       <div className="text-sm text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Buyer ID: {o.user_id ?? 'N/A'}</div>
+                    <div className="text-right flex items-center gap-3">
+                      <div className="text-sm text-muted-foreground">Buyer ID: {o.buyer_id ?? 'N/A'}</div>
+                      <span className="font-semibold text-thrift-green">NPR {((o.items || []).reduce((s: number, it: any) => s + Number(it.price || 0) * Number(it.quantity || 1), 0)).toLocaleString()}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedSold.has(o.id || o.ID || o.order_id) ? 'rotate-180' : ''}`} />
                     </div>
+                  </button>
+                  {expandedSold.has(o.id || o.ID || o.order_id) && (
+                  <div className="px-3 pb-3 text-sm space-y-1">
+                    {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
+                      <div key={i} className="flex justify-between">
+                        <div>{it.title} × {it.quantity}</div>
+                        <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-2 text-sm">
-                    {o.items && Array.isArray(o.items) ? (
-                      o.items.map((it: any, i: number) => (
-                        <div key={i} className="flex justify-between">
-                          <div>{it.title} × {it.quantity}</div>
-                          <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-muted-foreground">No items</div>
-                    )}
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
