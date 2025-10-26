@@ -112,7 +112,7 @@ export default function Messages() {
               const productId = first.product_id;
               const title = first.product_title || first.product_id;
               return (
-                <div key={key} className="border rounded p-3">
+                <div key={key} className="border rounded p-3 bg-card max-w-2xl mx-auto shadow-sm">
                   <div className="text-sm text-muted-foreground mb-2 flex items-center justify-between">
                     <div>
                       Product: {title}

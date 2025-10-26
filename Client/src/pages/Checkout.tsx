@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 type CartItem = {
   id: string;
@@ -32,6 +33,7 @@ export default function Checkout() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { user, token } = useAuth();
 
   const {
     register,
@@ -93,7 +95,7 @@ export default function Checkout() {
       else await simulateCOD();
 
       const payload = {
-        userId: undefined, // set if you have user id
+        userId: user?.id ?? null,
         items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, quantity: i.quantity, image: i.image })),
         subtotal: Math.round(subtotal),
         tax: Math.round(taxes),
@@ -106,7 +108,10 @@ export default function Checkout() {
 
       const resp = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -119,7 +124,8 @@ export default function Checkout() {
       const created = await resp.json();
 
       // Clear cart and show confirmation
-      localStorage.setItem("cart", JSON.stringify([]));
+  localStorage.setItem("cart", JSON.stringify([]));
+  try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
       setCartItems([]);
       // navigate to order confirmation page if you have one
       // navigate(`/orders/${created.insertId || created.id}`);
@@ -162,6 +168,7 @@ export default function Checkout() {
                 <CardTitle className="text-2xl font-bold text-thrift-green">Shipping & Payment</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Reserve space so the card doesn't jump when payment sections expand/collapse */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name" className="text-thrift-green">Full Name</Label>
@@ -223,6 +230,8 @@ export default function Checkout() {
                     </div>
                   </RadioGroup>
                 </div>
+                {/* Payment details area sized by its own content */}
+                <div className="space-y-6">
                 {paymentMethod === "bank" && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -264,6 +273,7 @@ export default function Checkout() {
                     </div>
                   </div>
                 )}
+                </div>
                 <Button
                   type="submit"
                   className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white text-lg py-6"
@@ -274,7 +284,7 @@ export default function Checkout() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm bg-[hsl(var(--thrift-green))]/10">
+            <Card className="border-none shadow-sm bg-[hsl(var(--thrift-green))]/10 self-start h-auto">
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-thrift-green">Order Summary</CardTitle>
               </CardHeader>

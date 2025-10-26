@@ -89,27 +89,41 @@ export default function Profile() {
     setMessage("Account deletion is not enabled in this demo.");
   };
 
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [myOrders, setMyOrders] = useState<any[]>([]);
+  const [soldOrders, setSoldOrders] = useState<any[]>([]);
+  const [loadingMy, setLoadingMy] = useState(false);
+  const [loadingSold, setLoadingSold] = useState(false);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      setLoadingOrders(true);
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
+    const loadMy = async () => {
+      setLoadingMy(true);
       try {
-        const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      
-        const res = await fetch(`${apiBase}/api/orders`);
-        if (!res.ok) throw new Error("Failed to load orders");
+        const res = await fetch(`${apiBase}/api/orders/mine`, { headers });
+        if (!res.ok) throw new Error('Failed');
         const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to fetch orders", err);
-      } finally {
-        setLoadingOrders(false);
-      }
+        setMyOrders(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setMyOrders([]);
+      } finally { setLoadingMy(false); }
     };
-    fetchOrders();
-  }, []);
+    const loadSold = async () => {
+      setLoadingSold(true);
+      try {
+        const res = await fetch(`${apiBase}/api/orders/sold`, { headers });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        setSoldOrders(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setSoldOrders([]);
+      } finally { setLoadingSold(false); }
+    };
+    if (token) {
+      loadMy();
+      loadSold();
+    }
+  }, [token]);
 
   if (!user) {
     return (
@@ -227,19 +241,19 @@ export default function Profile() {
         </Card>
       </div>
 
-      {/* Orders */}
+      {/* Orders placed by me */}
       <Card className="mt-6 border-none shadow-sm bg-card">
         <CardHeader>
           <CardTitle className="text-lg">My Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          {loadingOrders ? (
+          {loadingMy ? (
             <p>Loading orders...</p>
-          ) : orders.length === 0 ? (
+          ) : myOrders.length === 0 ? (
             <p className="text-muted-foreground">No orders yet.</p>
           ) : (
             <div className="space-y-4">
-              {orders.map((o) => (
+              {myOrders.map((o) => (
                 <div key={o.id || o.ID || o.order_id} className="border rounded p-3">
                   <div className="flex justify-between">
                     <div>
@@ -261,6 +275,48 @@ export default function Profile() {
                       ))
                     ) : (
                       <div className="text-sm text-muted-foreground">No items stored</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Orders for my products (items others ordered from me) */}
+      <Card className="mt-6 border-none shadow-sm bg-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Orders Sold</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingSold ? (
+            <p>Loading sold items...</p>
+          ) : soldOrders.length === 0 ? (
+            <p className="text-muted-foreground">No items sold yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {soldOrders.map((o) => (
+                <div key={o.id || o.ID || o.order_id} className="border rounded p-3">
+                  <div className="flex justify-between">
+                    <div>
+                      <div className="font-medium">Order #{o.id || o.ID || o.order_id}</div>
+                      <div className="text-sm text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Buyer ID: {o.user_id ?? 'N/A'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm">
+                    {o.items && Array.isArray(o.items) ? (
+                      o.items.map((it: any, i: number) => (
+                        <div key={i} className="flex justify-between">
+                          <div>{it.title} × {it.quantity}</div>
+                          <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No items</div>
                     )}
                   </div>
                 </div>
