@@ -59,7 +59,11 @@ export default function ProductDetail() {
       cart.push({ id: idStr, title, price, image, quantity: 1 });
     }
     localStorage.setItem("cart", JSON.stringify(cart));
-    navigate("/cart");
+    try {
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } }));
+    } catch {}
+    setBanner("Added to cart.");
+    setTimeout(() => setBanner(null), 2000);
   };
 
   useEffect(() => {

@@ -16,7 +16,7 @@ import {
 
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [cartItems] = useState(0);
+  const [cartCount, setCartCount] = useState<number>(0);
   const { isAuthenticated, user, token, logout } = useAuth(); // include token
   const navigate = useNavigate();
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || 'http://localhost:5000', []);
@@ -53,6 +53,34 @@ export const Navbar = () => {
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token, apiBase]);
+
+  // Cart count: initialize from localStorage and listen for updates
+  useEffect(() => {
+    const getCount = () => {
+      try {
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        return Array.isArray(cart) ? cart.length : 0;
+      } catch {
+        return 0;
+      }
+    };
+    setCartCount(getCount());
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'cart') setCartCount(getCount());
+    };
+    const onCartUpdated = (e: Event) => {
+      const ev = e as CustomEvent<{ count?: number }>;
+      if (typeof ev.detail?.count === 'number') setCartCount(ev.detail.count);
+      else setCartCount(getCount());
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('cartUpdated', onCartUpdated as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('cartUpdated', onCartUpdated as EventListener);
+    };
+  }, []);
 
   // Real-time notifications via SSE
   useEffect(() => {
@@ -160,7 +188,7 @@ export const Navbar = () => {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-3">
-            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+            <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
               <Link to={resolveHref("/wishlist")}>
                 <Heart className="w-5 h-5" />
               </Link>
@@ -168,7 +196,7 @@ export const Navbar = () => {
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))] hover:text-white" onClick={() => { if (!notifications.length) loadNotifications(); }}>
+                <Button variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]" onClick={() => { if (!notifications.length) loadNotifications(); }}>
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
@@ -204,7 +232,7 @@ export const Navbar = () => {
                   return (
                     <DropdownMenuItem
                       key={n.id}
-                      className={`flex items-start gap-2 ${isUnread ? 'bg-[hsl(var(--thrift-green))]/10' : ''} hover:bg-[hsl(var(--thrift-green))] hover:text-white`}
+                      className={`flex items-start gap-2 ${isUnread ? 'bg-[hsl(var(--thrift-green))]/10' : ''} hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] data-[highlighted]:bg-[hsl(var(--thrift-green))]/10 data-[highlighted]:text-[hsl(var(--thrift-green))]`}
                       onClick={async () => {
                         // mark single as read locally
                         if (isUnread) {
@@ -233,17 +261,17 @@ export const Navbar = () => {
                 })}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+            <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
               <Link to={resolveHref("/messages")}>
                 <MessageSquare className="w-5 h-5" />
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream relative">
+            <Button asChild variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
               <Link to={resolveHref("/cart")}>
                 <ShoppingBag className="w-5 h-5" />
-                {cartItems > 0 && (
+                {cartCount > 0 && (
                   <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
-                    {cartItems}
+                    {cartCount}
                   </Badge>
                 )}
               </Link>
@@ -251,13 +279,13 @@ export const Navbar = () => {
 
             {isAuthenticated ? (
               <>
-                <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to="/profile" className="flex items-center gap-2">
                     <User className="w-5 h-5" />
                     <span className="text-sm font-medium hidden lg:inline">{user?.name}</span>
                   </Link>
                 </Button>
-                <Button onClick={handleLogout} variant="outline" size="sm">
+                <Button onClick={handleLogout} variant="outline" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   Logout
                 </Button>
               </>
@@ -306,37 +334,37 @@ export const Navbar = () => {
                 <Link
                   key={link.href}
                   to={resolveHref(link.href)}
-                  className="block px-4 py-2 text-foreground hover:bg-thrift-cream hover:text-thrift-green transition-colors rounded-md"
+                  className="block px-4 py-2 text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] transition-colors rounded-md"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {link.label}
                 </Link>
               ))}
               <div className="flex items-center justify-around pt-4 border-t">
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to={resolveHref("/wishlist")}>
                     <Heart className="w-5 h-5 mr-2" />
                     Wishlist
                   </Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to={resolveHref("/messages")}>
                     <MessageSquare className="w-5 h-5 mr-2" />
                     Messages
                   </Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm" className="relative">
+                <Button asChild variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to={resolveHref("/cart")}>
                     <ShoppingBag className="w-5 h-5 mr-2" />
                     Cart
-                    {cartItems > 0 && (
+                    {cartCount > 0 && (
                       <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
-                        {cartItems}
+                        {cartCount}
                       </Badge>
                     )}
                   </Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to={resolveHref("/profile")}>
                     <User className="w-5 h-5 mr-2" />
                     Profile
@@ -346,7 +374,7 @@ export const Navbar = () => {
 
               {isAuthenticated ? (
                 <div className="pt-2 px-4">
-                  <Button onClick={handleLogout} className="w-full" variant="outline" size="sm">
+                  <Button onClick={handleLogout} className="w-full hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]" variant="outline" size="sm">
                     Logout
                   </Button>
                 </div>

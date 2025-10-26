@@ -1,7 +1,6 @@
 import { Heart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ShoppingBag, Eye } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -83,6 +82,9 @@ export const ProductCard = ({
     }
     localStorage.setItem("cart", JSON.stringify(storedCart));
     setCartItems(storedCart.length);
+    try {
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: storedCart.length } }));
+    } catch {}
   };
 
   const handleToggleWishlist = () => {
@@ -210,16 +212,14 @@ export const ProductCard = ({
         </div>
 
         {/* Add to Cart Button */}
-        <Link to="/cart">
-          <Button
-            className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
-            size="sm"
-            onClick={handleAddToCart}
-          >
-            <ShoppingBag className="w-4 h-4 mr-2" />
-            Add to Cart
-          </Button>
-        </Link>
+        <Button
+          className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
+          size="sm"
+          onClick={handleAddToCart}
+        >
+          <ShoppingBag className="w-4 h-4 mr-2" />
+          Add to Cart
+        </Button>
       </CardContent>
     </Card>
   );

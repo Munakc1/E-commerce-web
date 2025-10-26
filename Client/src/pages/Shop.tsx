@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Listing {
@@ -36,6 +36,14 @@ const Shop = () => {
   const initialCat = (searchParams.get('category') || 'all').toLowerCase();
   const [searchQuery, setSearchQuery] = useState(initialQ);
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("wishlist") || "[]");
+      return new Set(Array.isArray(raw) ? raw.map(String) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
 
   // Fetch listings from backend products; fallback to localStorage
   useEffect(() => {
@@ -195,7 +203,22 @@ const Shop = () => {
     }
 
     localStorage.setItem("cart", JSON.stringify(cart));
-    navigate("/cart");
+    try {
+      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } }));
+    } catch {}
+  };
+
+  const toggleWishlist = (id: string) => {
+    setWishlistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem("wishlist", JSON.stringify(Array.from(next)));
+        window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: next.size } }));
+      } catch {}
+      return next;
+    });
   };
 
   return (
@@ -328,11 +351,20 @@ const Shop = () => {
                   }}
                 >
                   <CardContent className="p-4">
-                    <img
-                      src={listing.images[0] || "https://via.placeholder.com/150"}
-                      alt={listing.title}
-                      className="h-48 w-full object-cover rounded-lg mb-4"
-                    />
+                    <div className="relative">
+                      <img
+                        src={listing.images[0] || "https://via.placeholder.com/150"}
+                        alt={listing.title}
+                        className="h-48 w-full object-cover rounded-lg mb-4"
+                      />
+                      <button
+                        className={`absolute top-2 right-2 w-9 h-9 rounded-md grid place-items-center bg-white/90 hover:bg-white transition ${wishlistIds.has(String(listing.id)) ? 'text-red-500' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); toggleWishlist(String(listing.id)); }}
+                        aria-label={wishlistIds.has(String(listing.id)) ? 'Remove from wishlist' : 'Add to wishlist'}
+                      >
+                        <Heart className={`w-4 h-4 ${wishlistIds.has(String(listing.id)) ? 'fill-current' : ''}`} />
+                      </button>
+                    </div>
                     <h3 className="text-lg font-semibold mb-2 truncate group-hover:text-thrift-green">
                       {listing.title}
                     </h3>
