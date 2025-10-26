@@ -210,29 +210,27 @@ const Shop = () => {
     };
   }, []);
 
-  // Add to cart and redirect to cart page
+  // Add to cart: single-quantity thrift items (no duplicates)
   const addToCart = (listing: Listing) => {
-    const cart: Array<{ id: string; title: string; price: number; image: string; quantity: number }> =
+    const cart: Array<{ id: string; title: string; price: number; image: string; quantity?: number }> =
       JSON.parse(localStorage.getItem("cart") || "[]");
 
-    const idx = cart.findIndex((c) => c.id === listing.id);
+    const idx = cart.findIndex((c) => String(c.id) === String(listing.id));
     if (idx >= 0) {
-      cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
-    } else {
-      cart.push({
-        id: listing.id,
-        title: listing.title,
-        price: listing.price,
-        image: listing.images[0] || "",
-        quantity: 1,
-      });
+      // Already in cart: keep single item, notify
+      try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
+      toast.info("Item already in cart", { description: listing.title });
+      return;
     }
-
+    cart.push({
+      id: String(listing.id),
+      title: listing.title,
+      price: listing.price,
+      image: listing.images[0] || "",
+      quantity: 1,
+    });
     localStorage.setItem("cart", JSON.stringify(cart));
-    const totalQty = cart.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
-    try {
-      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
-    } catch {}
+    try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
     toast.success("Added to cart", { description: listing.title });
   };
 

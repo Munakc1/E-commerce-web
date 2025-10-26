@@ -292,7 +292,7 @@ export const Navbar = () => {
               </>
             ) : (
               <>
-                <Button asChild variant="ghost" size="sm" className="hover:bg-thrift-cream">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Link to="/signin">{/* fixed casing */}
                     Sign In
                   </Link>
@@ -381,7 +381,7 @@ export const Navbar = () => {
                 </div>
               ) : (
                 <div className="pt-2 px-4 grid grid-cols-2 gap-2">
-                  <Button asChild variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] border-thrift-green">
                     <Link to="/signin">Sign In</Link>
                   </Button>
                   <Button asChild size="sm" className="bg-thrift-green hover:bg-thrift-green/90">

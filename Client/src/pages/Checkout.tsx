@@ -64,7 +64,7 @@ export default function Checkout() {
     setCartItems(cart);
   }, []);
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
   const TAX_RATE = Number(import.meta.env.VITE_TAX_RATE ?? 0);
   const taxes = subtotal * TAX_RATE;
   const shipping = cartItems.length > 0 ? 200 : 0;
@@ -97,7 +97,7 @@ export default function Checkout() {
 
       const payload = {
         userId: user?.id ?? null,
-        items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, quantity: i.quantity, image: i.image })),
+        items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, quantity: 1, image: i.image })),
         subtotal: Math.round(subtotal),
         tax: Math.round(taxes),
         shipping: Math.round(shipping),
@@ -302,9 +302,8 @@ export default function Checkout() {
                   <div key={item.id} className="flex justify-between text-sm border-b py-2">
                     <div>
                       <p className="font-medium">{item.title}</p>
-                      <p className="text-muted-foreground">× {item.quantity}</p>
                     </div>
-                    <p className="font-medium">NPR {(item.price * item.quantity).toLocaleString()}</p>
+                    <p className="font-medium">NPR {Number(item.price || 0).toLocaleString()}</p>
                   </div>
                 ))}
                 <div className="space-y-2 pt-2">

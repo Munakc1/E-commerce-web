@@ -10,7 +10,18 @@ export default function Cart() {
   const navigate = useNavigate();
   useEffect(() => {
     const c = JSON.parse(localStorage.getItem("cart") || "[]");
-    setCart(Array.isArray(c) ? c : []);
+    const arr = Array.isArray(c) ? c : [];
+    // Normalize to single-quantity unique items
+    const map = new Map<string, any>();
+    for (const it of arr) {
+      const idStr = String(it?.id);
+      if (!map.has(idStr)) {
+        map.set(idStr, { ...it, id: idStr, quantity: 1 });
+      }
+    }
+    const normalized = Array.from(map.values());
+    try { localStorage.setItem("cart", JSON.stringify(normalized)); } catch {}
+    setCart(normalized);
   }, []);
 
   const clearCart = () => {
@@ -19,7 +30,7 @@ export default function Cart() {
     try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0), 0);
   const TAX_RATE = Number(import.meta.env.VITE_TAX_RATE ?? 0);
   const taxes = subtotal * TAX_RATE;
   const shipping = cart.length > 0 ? 200 : 0;
@@ -48,31 +59,7 @@ export default function Cart() {
     );
   }
 
-  function updateQuantity(id: any, delta: number): void {
-    setCart((prev) => {
-      const idStr = String(id);
-      const next = prev.map((it) => ({ ...it }));
-      const idx = next.findIndex((it) => String(it.id) === idStr);
-      if (idx === -1) return prev;
-      const newQty = Number(next[idx].quantity || 0) + Number(delta || 0);
-      if (newQty <= 0) {
-        const filtered = next.filter((it) => String(it.id) !== idStr);
-        localStorage.setItem("cart", JSON.stringify(filtered));
-        try {
-          const totalQty = filtered.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
-          window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalQty } }));
-        } catch {}
-        return filtered;
-      }
-      next[idx].quantity = newQty;
-      localStorage.setItem("cart", JSON.stringify(next));
-      try {
-        const totalQty = next.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
-        window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalQty } }));
-      } catch {}
-      return next;
-    });
-  }
+  // Quantity controls removed: thrift items are unique single-quantity
 
   function removeItem(id: any): void {
     setCart((prev) => {
@@ -89,13 +76,13 @@ export default function Cart() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Your Cart</h1>
+      <div className="mb-6 text-center relative">
+  <h1 className="text-3xl md:text-4xl font-bold text-[hsl(var(--thrift-green))]">Your Cart</h1>
         <Button
           variant="destructive"
           size="sm"
           onClick={clearCart}
-          className="hidden sm:inline-flex"
+          className="hidden sm:inline-flex absolute right-0 top-1/2 -translate-y-1/2"
           aria-label="Clear cart"
           title="Clear cart"
         >
@@ -104,25 +91,18 @@ export default function Cart() {
         </Button>
       </div>
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2">
+  <div className="lg:col-span-2 w-full max-w-lg mx-auto">
           {cart.map((item) => (
-            <Card key={item.id} className="mb-4 border-none shadow-sm bg-card hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 flex items-center gap-4">
+            <Card key={item.id} className="mb-3 border-none shadow-sm bg-card hover:shadow-md transition-all duration-200">
+              <CardContent className="p-3 flex items-center gap-3">
                 <img
                   src={item.image || "https://images.unsplash.com/photo-1509281373149-e957c6296406"}
                   alt={item.title}
-                  className="w-24 h-32 object-cover rounded-md"
+                  className="w-20 h-24 object-cover rounded-md"
                 />
                 <div className="flex-1">
-                  <h3 className="font-medium text-foreground">{item.title}</h3>
-                  <p className="text-lg font-bold text-thrift-green">
-                    NPR {(item.price * item.quantity).toLocaleString()}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Button variant="outline" size="sm" onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8">–</Button>
-                    <span className="text-sm">{item.quantity}</span>
-                    <Button variant="outline" size="sm" onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8">+</Button>
-                  </div>
+                  <h3 className="font-medium text-foreground line-clamp-1">{item.title}</h3>
+                  <p className="text-base font-bold text-thrift-green">NPR {Number(item.price || 0).toLocaleString()}</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="text-destructive hover:text-destructive/90 hover:bg-destructive/10">
                   <Trash2 className="w-5 h-5" />

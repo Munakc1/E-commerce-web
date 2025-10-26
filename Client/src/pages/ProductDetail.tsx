@@ -43,7 +43,7 @@ export default function ProductDetail() {
   // Add to cart helper
   const addToCart = () => {
     if (!product) return;
-    const cart: Array<{ id: string; title: string; price: number; image: string; quantity: number }> =
+    const cart: Array<{ id: string; title: string; price: number; image: string; quantity?: number }> =
       JSON.parse(localStorage.getItem("cart") || "[]");
 
     const idStr = String(product.id);
@@ -53,17 +53,15 @@ export default function ProductDetail() {
     const title = product.title || "Item";
     const price = Number(product.price || 0);
 
-    const idx = cart.findIndex((c) => c.id === idStr);
+    const idx = cart.findIndex((c) => String(c.id) === idStr);
     if (idx >= 0) {
-      cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
-    } else {
-      cart.push({ id: idStr, title, price, image, quantity: 1 });
+      try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
+      toast.info("Item already in cart", { description: title });
+      return;
     }
+    cart.push({ id: idStr, title, price, image, quantity: 1 });
     localStorage.setItem("cart", JSON.stringify(cart));
-    const totalQty = cart.reduce((sum, it) => sum + (Number(it.quantity ?? 1) || 1), 0);
-    try {
-      window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: totalQty } }));
-    } catch {}
+    try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
     toast.success("Added to cart", { description: title });
   };
 
