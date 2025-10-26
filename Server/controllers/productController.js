@@ -1,5 +1,4 @@
 const pool = require("../db");
-const cloudinary = require("../config/cloudinary");
 
 // 📌 Create Product
 exports.createProduct = async (req, res) => {
@@ -15,15 +14,15 @@ exports.createProduct = async (req, res) => {
     let mainImage = null;
     let imageUrls = [];
 
-    // Upload images to Cloudinary
-    if (req.files && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        const uploadResult = await cloudinary.uploader.upload(file.path, { folder: "products" });
-
-        if (i === 0) mainImage = uploadResult.secure_url;
-        imageUrls.push(uploadResult.secure_url);
-      }
+    // Use locally stored files (multer disk storage) and expose via /uploads
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      imageUrls = req.files.map((f, i) => {
+        const filename = f.filename || (f.path ? require('path').basename(f.path) : null);
+        const url = filename ? `${baseUrl}/uploads/${filename}` : null;
+        if (i === 0 && url) mainImage = url;
+        return url;
+      }).filter(Boolean);
     }
 
     // Insert into products
@@ -36,11 +35,13 @@ exports.createProduct = async (req, res) => {
     const productId = result.insertId;
 
     // Insert all images
-    for (const url of imageUrls) {
-      await conn.query(
-        `INSERT INTO product_images (product_id, image_url) VALUES (?, ?)`,
-        [productId, url]
-      );
+    if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+      for (const url of imageUrls) {
+        await conn.query(
+          `INSERT INTO product_images (product_id, image_url) VALUES (?, ?)`,
+          [productId, url]
+        );
+      }
     }
 
     await conn.commit();

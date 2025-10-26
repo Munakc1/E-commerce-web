@@ -26,39 +26,29 @@ export default function Profile() {
 
   useEffect(() => setForm(initial), [initial]);
 
-  const onSaveProfile = async () => {
-    setMessage(null);
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+  async function onSaveProfile() {
+    if (!user?.id) return;
     setSaving(true);
     try {
-      const updatedUser = { ...(user || {}), name: form.name, email: form.email, phone: form.phone };
-
-      // If you have an API, try to persist (ignore if it fails and fall back to local)
-      try {
-        await fetch(`${import.meta.env.VITE_API_URL || ""}/api/users/me`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ name: form.name, phone: form.phone }),
-        }).catch(() => {});
-      } catch {
-        // ignore API errors for now
+      const res = await fetch(`${apiBase}/api/users/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, name: form.name, phone: form.phone }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("Server error:", res.status, data);
+        return;
       }
-
-      // Update AuthContext/localStorage
-      if (token) {
-        login(token, updatedUser as any);
-      } else {
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-      }
-
+      const updated = data.user || { ...user, name: form.name, phone: form.phone };
+      token ? login(token, updated as any) : localStorage.setItem("user", JSON.stringify(updated));
       setEditing(false);
-      setMessage("Profile updated.");
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   const [pwd, setPwd] = useState({ current: "", next: "", confirm: "" });
 
@@ -103,7 +93,7 @@ export default function Profile() {
       setLoadingOrders(true);
       try {
         const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        // if you attach userId server-side, use query ?userId=...
+      
         const res = await fetch(`${apiBase}/api/orders`);
         if (!res.ok) throw new Error("Failed to load orders");
         const data = await res.json();

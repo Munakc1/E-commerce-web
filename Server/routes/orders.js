@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const pool = require("../../db"); // Server/db.js
+const pool = require("../db"); // Server/db.js
 
 // create order (stores snapshot even if product missing)
 router.post("/", async (req, res) => {

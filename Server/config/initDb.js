@@ -31,6 +31,7 @@ async function initDb() {
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,
       name VARCHAR(100) NOT NULL,
       email VARCHAR(191) NOT NULL UNIQUE,
+      phone VARCHAR(20) NULL,
       password VARCHAR(255) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -98,6 +99,22 @@ async function initDb() {
       await pool.execute(sql);
     } catch (err) {
       console.error('Failed running statement:', err);
+    }
+  }
+  // Ensure backward compatibility: add phone column if the table already existed
+  try {
+    await pool.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) NULL AFTER email`);
+  } catch (err) {
+    // Some MySQL versions may not support IF NOT EXISTS for ADD COLUMN; fallback check
+    if (err && err.code !== 'ER_DUP_FIELDNAME') {
+      try {
+        const [cols] = await pool.query(`SHOW COLUMNS FROM users LIKE 'phone'`);
+        if (!Array.isArray(cols) || cols.length === 0) {
+          await pool.execute(`ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL AFTER email`);
+        }
+      } catch (e) {
+        console.error('Failed ensuring users.phone column:', e);
+      }
     }
   }
   console.log('✅ Database and tables are ready');
