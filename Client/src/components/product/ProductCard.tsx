@@ -20,6 +20,7 @@ interface ProductCardProps {
   seller: string;
   location: string;
   className?: string;
+  status?: string;
 }
 
 export const ProductCard = ({
@@ -35,6 +36,7 @@ export const ProductCard = ({
   seller,
   location,
   className,
+  status,
 }: ProductCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [liked, setLiked] = useState(isLiked);
@@ -68,6 +70,12 @@ export const ProductCard = ({
   };
 
   const handleAddToCart = () => {
+    // Prevent adding items that are not available for sale
+    const st = String(status || "").toLowerCase();
+    if (st && st !== 'unsold') {
+      toast.error("Item cannot be added to cart", { description: `This listing is ${st.replace('_', ' ')}` });
+      return;
+    }
     const storedCart: Array<any> = JSON.parse(localStorage.getItem("cart") || "[]");
     const idx = storedCart.findIndex((c) => String(c.id) === String(id));
     if (idx >= 0) {
@@ -215,14 +223,25 @@ export const ProductCard = ({
         </div>
 
         {/* Add to Cart Button */}
-        <Button
-          className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
-          size="sm"
-          onClick={handleAddToCart}
-        >
-          <ShoppingBag className="w-4 h-4 mr-2" />
-          Add to Cart
-        </Button>
+        {
+          (() => {
+            const st = String(status || "").toLowerCase();
+            const disabled = !!st && st !== 'unsold';
+            const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+            return (
+              <Button
+                className={`w-full ${disabled ? 'opacity-60 cursor-not-allowed' : 'bg-thrift-green hover:bg-thrift-green/90'} text-white`}
+                size="sm"
+                onClick={handleAddToCart}
+                disabled={disabled}
+                aria-disabled={disabled}
+              >
+                <ShoppingBag className="w-4 h-4 mr-2" />
+                {label}
+              </Button>
+            );
+          })()
+        }
       </CardContent>
     </Card>
   );

@@ -22,6 +22,7 @@ type Product = {
   images?: string[];
   image?: string;
   location?: string;
+  status?: string;
 };
 
 export default function ProductDetail() {
@@ -43,6 +44,11 @@ export default function ProductDetail() {
   // Add to cart helper
   const addToCart = () => {
     if (!product) return;
+    const st = String(product.status || '').toLowerCase();
+    if (st && st !== 'unsold') {
+      toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
+      return;
+    }
     const cart: Array<{ id: string; title: string; price: number; image: string; quantity?: number }> =
       JSON.parse(localStorage.getItem("cart") || "[]");
 
@@ -193,10 +199,19 @@ export default function ProductDetail() {
           )}
 
           <div className="flex gap-4">
-            <Button className="flex-1 bg-thrift-green hover:bg-thrift-green/90" onClick={addToCart}>
-              <ShoppingCart className="w-5 h-5 mr-2" />
-              Add to Cart
-            </Button>
+            {
+              (() => {
+                const st = String(product.status || '').toLowerCase();
+                const disabled = !!st && st !== 'unsold';
+                const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+                return (
+                  <Button className={`flex-1 ${disabled ? 'opacity-60 cursor-not-allowed' : 'bg-thrift-green hover:bg-thrift-green/90'}`} onClick={addToCart} disabled={disabled}>
+                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    {label}
+                  </Button>
+                );
+              })()
+            }
             <Button variant="outline" onClick={() => setContactOpen(true)}>
               Message Seller
             </Button>

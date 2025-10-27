@@ -22,6 +22,7 @@ interface Listing {
   location: string;
   images: string[];
   createdAt: string;
+  status?: string;
 }
 
 // Canonical category mapping to keep Home -> Shop links and backend data consistent
@@ -105,6 +106,7 @@ const Shop = () => {
                 ? JSON.parse(p.images)
                 : (p.image ? [p.image] : [])),
           createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+          status: (p.status || p.product_status || '').toString(),
         }));
         setListings(items);
         setFilteredListings(items);
@@ -128,6 +130,7 @@ const Shop = () => {
                 ? JSON.parse(p.images)
                 : (p.image ? [p.image] : [])),
           createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+          status: (p.status || p.product_status || '').toString(),
         }));
         setListings(stored);
         setFilteredListings(stored);
@@ -263,6 +266,11 @@ const Shop = () => {
 
   // Add to cart: single-quantity thrift items (no duplicates)
   const addToCart = (listing: Listing) => {
+    const st = String(listing.status || '').toLowerCase();
+    if (st && st !== 'unsold') {
+      toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
+      return;
+    }
     const cart: Array<{ id: string; title: string; price: number; image: string; quantity?: number }> =
       JSON.parse(localStorage.getItem("cart") || "[]");
 
@@ -487,14 +495,24 @@ const Shop = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Category: {listing.category}
                     </p>
-                    <Button
-                      className="w-full bg-thrift-green hover:bg-thrift-green/90"
-                      onClick={(e) => { e.stopPropagation(); addToCart(listing); }}
-                      aria-label={`Add ${listing.title} to cart`}
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to Cart
-                    </Button>
+                    {
+                      (() => {
+                        const st = String(listing.status || '').toLowerCase();
+                        const disabled = !!st && st !== 'unsold';
+                        const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+                        return (
+                          <Button
+                            className={`w-full ${disabled ? 'opacity-60 cursor-not-allowed' : 'bg-thrift-green hover:bg-thrift-green/90'}`}
+                            onClick={(e) => { e.stopPropagation(); if (!disabled) addToCart(listing); }}
+                            aria-label={label}
+                            disabled={disabled}
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            {label}
+                          </Button>
+                        );
+                      })()
+                    }
                   </CardContent>
                 </Card>
               ))}

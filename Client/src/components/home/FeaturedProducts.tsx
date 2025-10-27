@@ -17,6 +17,7 @@ type Product = {
   images: string[];
   seller: string;
   location: string;
+  status?: string;
 };
 
 export const FeaturedProducts = () => {
@@ -51,6 +52,7 @@ export const FeaturedProducts = () => {
                   : (p.image ? [p.image] : [])),
             seller: p.seller || "",
             location: p.location || "",
+            status: (p.status || '').toString(),
           }));
           setProducts(mapped.slice(0, 8));
           setMoreProducts(mapped.slice(8));
@@ -92,7 +94,7 @@ export const FeaturedProducts = () => {
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {products.map((product) => (
-            <ProductCard key={product.id} {...product} />
+            <ProductCard key={product.id} {...product} status={product.status} />
           ))}
         </div>
 
