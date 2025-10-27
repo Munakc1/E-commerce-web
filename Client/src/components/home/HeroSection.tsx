@@ -64,7 +64,7 @@ export const HeroSection = () => {
           {/* Content */}
           <div className="space-y-8">
             {/* Badge */}
-            <Badge className="bg-thrift-warm/10 text-black border-thrift-warm/20 hover:bg-thrift-warm/20 transition-colors cursor-pointer">
+            <Badge className="bg-thrift-green/10 text-black border-thrift-green/20 hover:bg-thrift-green/20 transition-colors cursor-pointer">
               <Leaf className="w-4 h-4 mr-2" />
               Sustainable Fashion Platform
             </Badge>
@@ -191,7 +191,7 @@ export const HeroSection = () => {
             
             <div className="absolute -bottom-2 -right-2 lg:-bottom-4 lg:-right-4 bg-white p-3 lg:p-4 rounded-xl shadow-lg border z-20 transition-all hover:scale-105">
               <div className="text-center">
-                <div className="text-xl lg:text-2xl font-bold text-thrift-warm">50%</div>
+                  <div className="text-xl lg:text-2xl font-bold text-thrift-green">50%</div>
                 <div className="text-xs lg:text-sm text-muted-foreground">Less CO₂</div>
               </div>
             </div>

@@ -200,7 +200,7 @@ export const Navbar = () => {
                 <Button variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]" onClick={() => { if (!notifications.length) loadNotifications(); }}>
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
-                    <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
+                    <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-green text-[10px] leading-none rounded-full grid place-items-center">
                       {unreadCount}
                     </Badge>
                   )}
@@ -271,7 +271,7 @@ export const Navbar = () => {
               <Link to={resolveHref("/cart")}>
                 <ShoppingBag className="w-5 h-5" />
                 {cartCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
+                  <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-green text-[10px] leading-none rounded-full grid place-items-center">
                     {cartCount}
                   </Badge>
                 )}
@@ -360,7 +360,7 @@ export const Navbar = () => {
                     <ShoppingBag className="w-5 h-5 mr-2" />
                     Cart
                     {cartCount > 0 && (
-                      <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-warm text-[10px] leading-none rounded-full grid place-items-center">
+                      <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-green text-[10px] leading-none rounded-full grid place-items-center">
                         {cartCount}
                       </Badge>
                     )}

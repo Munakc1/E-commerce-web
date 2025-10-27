@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Heart, Trash2 } from "lucide-react";
+import { Heart, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 export interface Product {
   id: string;
@@ -196,9 +197,9 @@ export default function Wishlist() {
   // Render products from DB (or minimal fallback for guests)
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">My Wishlist</h1>
-        <Button variant="ghost" onClick={clearAll} className="text-thrift-warm">Clear All</Button>
+        <Button variant="ghost" onClick={clearAll} className="text-thrift-green">Clear All</Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {wishlist.map(item => (
@@ -211,8 +212,62 @@ export default function Wishlist() {
                 <div className="font-semibold truncate mb-1">{item.title}</div>
                 <div className="text-thrift-green font-bold mb-3">NPR {Number(item.price || 0).toLocaleString()}</div>
               </Link>
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+              <div className="flex justify-end items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // add to cart helper
+                    (async () => {
+                      try {
+                        const pid = String(item.id);
+                        // fetch product to check status and price if possible
+                        const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                        const resp = await fetch(`${apiBase}/api/products/${pid}`);
+                        if (!resp.ok) throw new Error('Failed to fetch product');
+                        const prod = await resp.json();
+                        const st = String(prod.status || prod.product_status || '').toLowerCase();
+                        if (st && st !== 'unsold') {
+                          toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
+                          return;
+                        }
+                        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+                        const idx = (Array.isArray(cart) ? cart : []).findIndex((c: any) => String(c.id) === pid);
+                        if (idx >= 0) {
+                          try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: cart.length } })); } catch {}
+                          toast.info('Item already in cart', { description: item.title });
+                          return;
+                        }
+                        const image = item.image || (Array.isArray(prod.images) && prod.images.length ? prod.images[0] : (prod.image || ""));
+                        const price = Number(prod.price || item.price || 0);
+                        const next = Array.isArray(cart) ? [...cart, { id: pid, title: item.title || prod.title || `Product #${pid}`, price, image, quantity: 1 }] : [{ id: pid, title: item.title || prod.title || `Product #${pid}`, price, image, quantity: 1 }];
+                        localStorage.setItem('cart', JSON.stringify(next));
+                        try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: next.length } })); } catch {}
+                        toast.success('Added to cart', { description: item.title });
+                      } catch (e: any) {
+                        // fallback: try minimal add
+                        try {
+                          const pid = String(item.id);
+                          const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+                          const idx = (Array.isArray(cart) ? cart : []).findIndex((c: any) => String(c.id) === pid);
+                          if (idx >= 0) { toast.info('Item already in cart'); return; }
+                          const next = Array.isArray(cart) ? [...cart, { id: pid, title: item.title, price: Number(item.price || 0), image: item.image || '', quantity: 1 }] : [{ id: pid, title: item.title, price: Number(item.price || 0), image: item.image || '', quantity: 1 }];
+                          localStorage.setItem('cart', JSON.stringify(next));
+                          try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: next.length } })); } catch {}
+                          toast.success('Added to cart', { description: item.title });
+                        } catch (ee) {
+                          toast.error('Unable to add to cart');
+                        }
+                      }
+                    })();
+                  }}
+                  className="!text-thrift-green"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>

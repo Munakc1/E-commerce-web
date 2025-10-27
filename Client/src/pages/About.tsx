@@ -110,7 +110,7 @@ const About = () => {
       <section className="py-20 bg-gradient-to-br from-thrift-cream via-background to-thrift-cream">
         <div className="container mx-auto px-4 text-center">
           <Badge
-            className="mb-6 bg-thrift-warm/10 text-black border-thrift-warm/20 hover:bg-thrift-warm/20 transition-colors cursor-pointer"
+            className="mb-6 bg-thrift-green/10 text-black border-thrift-green/20 hover:bg-thrift-green/20 transition-colors cursor-pointer"
             aria-label="About ThriftSy"
           >
             <Leaf className="w-4 h-4 mr-2" />
@@ -120,7 +120,7 @@ const About = () => {
             Revolutionizing Fashion
             <span className="text-thrift-green relative inline-block ml-2">
               in Nepal
-              <div className="absolute -bottom-2 left-0 w-full h-1 bg-thrift-warm/30 rounded-full"></div>
+              <div className="absolute -bottom-2 left-0 w-full h-1 bg-thrift-green/30 rounded-full"></div>
             </span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">

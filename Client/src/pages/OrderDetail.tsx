@@ -86,7 +86,7 @@ export default function OrderDetail() {
 
   return (
     <div className="container mx-auto px-4 py-10 flex justify-center">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">← Back to Orders</Button>
+  <Button variant="ghost" onClick={() => navigate('/profile?tab=orders')} className="mb-6">← Back to Orders</Button>
       <Card className="border-none shadow-sm bg-card w-full max-w-2xl">
         <CardHeader>
           <CardTitle className="text-center">Order Details</CardTitle>

@@ -226,7 +226,7 @@ const Sell = () => {
                 </div>
               )}
               {submissionStatus === "error" && (
-                <div className="bg-thrift-warm/10 text-thrift-warm p-4 rounded-lg animate-in fade-in duration-500">
+                <div className="bg-thrift-green/10 text-thrift-green p-4 rounded-lg animate-in fade-in duration-500">
                   Please fix the errors below and try again.
                 </div>
               )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Profile() {
   const { user, token, login } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'security' | 'orders'>('account');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') || 'account') as 'account' | 'security' | 'orders';
+  const [activeTab, setActiveTab] = useState<'account' | 'security' | 'orders'>(initialTab);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pwdSaving, setPwdSaving] = useState(false);

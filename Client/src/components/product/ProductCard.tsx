@@ -43,6 +43,8 @@ export const ProductCard = ({
   const [liked, setLiked] = useState(isLiked);
   const [cartItems, setCartItems] = useState<number>(0);
   const [isHovered, setIsHovered] = useState(false);
+  const auth = useAuth();
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   // Load cart and wishlist from localStorage on mount
   useEffect(() => {
@@ -190,8 +192,8 @@ export const ProductCard = ({
           <Badge className={getConditionColor(condition)} variant="secondary">
             {condition}
           </Badge>
-          {discountPercentage > 0 && (
-            <Badge className="bg-thrift-warm text-white">
+            {discountPercentage > 0 && (
+            <Badge className="bg-thrift-green text-white">
               -{discountPercentage}%
             </Badge>
           )}

@@ -186,16 +186,16 @@ export const Donate = () => {
         </div>
 
         {/* Success/Error Message */}
-        {submissionStatus === "success" && (
-          <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
-            <p className="text-thrift-green font-medium">
+          {submissionStatus === "success" && (
+            <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
+              <p className="text-thrift-green font-medium">
               Thank you for your donation! We'll reach out soon.
             </p>
           </div>
         )}
         {submissionStatus === "error" && (
-          <div className="mb-6 p-4 bg-thrift-warm/10 border border-thrift-warm rounded-md text-center">
-            <p className="text-thrift-warm font-medium">
+          <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
+            <p className="text-thrift-green font-medium">
               An error occurred. Please try again.
             </p>
           </div>
@@ -252,7 +252,7 @@ export const Donate = () => {
                           aria-describedby={errors.name ? "name-error" : undefined}
                         />
                         {errors.name && (
-                          <p id="name-error" className="text-sm text-thrift-warm">
+                    <p id="name-error" className="text-sm text-thrift-green">
                             {errors.name}
                           </p>
                         )}
@@ -273,7 +273,7 @@ export const Donate = () => {
                           aria-describedby={errors.email ? "email-error" : undefined}
                         />
                         {errors.email && (
-                          <p id="email-error" className="text-sm text-thrift-warm">
+                    <p id="email-error" className="text-sm text-thrift-green">
                             {errors.email}
                           </p>
                         )}
@@ -296,7 +296,7 @@ export const Donate = () => {
                           aria-describedby={errors.phone ? "phone-error" : undefined}
                         />
                         {errors.phone && (
-                          <p id="phone-error" className="text-sm text-thrift-warm">
+                    <p id="phone-error" className="text-sm text-thrift-green">
                             {errors.phone}
                           </p>
                         )}
@@ -326,7 +326,7 @@ export const Donate = () => {
                           </SelectContent>
                         </Select>
                         {errors.category && (
-                          <p id="category-error" className="text-sm text-thrift-warm">
+                    <p id="category-error" className="text-sm text-thrift-green">
                             {errors.category}
                           </p>
                         )}
@@ -348,7 +348,7 @@ export const Donate = () => {
                         aria-describedby={errors.itemName ? "itemName-error" : undefined}
                       />
                       {errors.itemName && (
-                        <p id="itemName-error" className="text-sm text-thrift-warm">
+                  <p id="itemName-error" className="text-sm text-thrift-green">
                           {errors.itemName}
                         </p>
                       )}
@@ -369,7 +369,7 @@ export const Donate = () => {
                         aria-describedby={errors.description ? "description-error" : undefined}
                       />
                       {errors.description && (
-                        <p id="description-error" className="text-sm text-thrift-warm">
+                  <p id="description-error" className="text-sm text-thrift-green">
                           {errors.description}
                         </p>
                       )}
@@ -390,7 +390,7 @@ export const Donate = () => {
                           aria-describedby={errors.size ? "size-error" : undefined}
                         />
                         {errors.size && (
-                          <p id="size-error" className="text-sm text-thrift-warm">
+                    <p id="size-error" className="text-sm text-thrift-green">
                             {errors.size}
                           </p>
                         )}
@@ -420,7 +420,7 @@ export const Donate = () => {
                           </SelectContent>
                         </Select>
                         {errors.condition && (
-                          <p id="condition-error" className="text-sm text-thrift-warm">
+                    <p id="condition-error" className="text-sm text-thrift-green">
                             {errors.condition}
                           </p>
                         )}
@@ -442,7 +442,7 @@ export const Donate = () => {
                         aria-describedby={errors.address ? "address-error" : undefined}
                       />
                       {errors.address && (
-                        <p id="address-error" className="text-sm text-thrift-warm">
+                  <p id="address-error" className="text-sm text-thrift-green">
                           {errors.address}
                         </p>
                       )}
@@ -471,7 +471,7 @@ export const Donate = () => {
                         </label>
                       </div>
                       {errors.images && (
-                        <p className="text-sm text-thrift-warm">{errors.images}</p>
+                  <p className="text-sm text-thrift-green">{errors.images}</p>
                       )}
                       {imagePreviews.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">

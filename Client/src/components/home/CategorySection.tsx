@@ -47,7 +47,8 @@ export const CategorySection = () => {
       label: "Shoes",
       value: "shoes",
       image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=1200&q=60",
-      color: "from-yellow-500/30 to-orange-500/30",
+      // use site theme green accents instead of yellow/orange
+      color: "from-emerald-500/30 to-emerald-600/30",
       count: "950+ items",
     },
   ], []);

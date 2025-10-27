@@ -109,7 +109,7 @@ export default function ProductDetail() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-16">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">← Back</Button>
+        <Button variant="ghost" onClick={() => navigate('/shop')} className="mb-6">← Back to Shop</Button>
         <p>Loading...</p>
       </div>
     );
@@ -126,7 +126,7 @@ export default function ProductDetail() {
 
   return (
     <div className="container mx-auto px-4 py-16">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
+      <Button variant="ghost" onClick={() => navigate('/shop')} className="mb-6">
         ← Back to Shop
       </Button>
 
