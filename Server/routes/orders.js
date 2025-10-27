@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db"); // Server/db.js
+const notify = require('../utils/notify');
 const jwt = require('jsonwebtoken');
 
 function requireUser(req, res) {
@@ -259,6 +260,97 @@ router.get('/sold', async (req, res) => {
   } catch (err) {
     console.error('orders SOLD error:', err);
     res.status(500).json({ message: 'Failed to fetch sold orders' });
+  }
+});
+
+// Update order (partial) - allow buyer to cancel their order and notify sellers
+router.put('/:id', async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id' });
+
+  const { status, payment_status } = req.body || {};
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(`SELECT * FROM orders WHERE id = ?`, [id]);
+    const order = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    if (!order) {
+      await conn.rollback();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Only allow buyer to cancel their own order via this endpoint for now
+    if (status && String(status) === 'cancelled') {
+      if (Number(order.user_id) !== Number(userId)) {
+        await conn.rollback();
+        return res.status(403).json({ message: 'Not authorized to cancel this order' });
+      }
+
+      await conn.query(`UPDATE orders SET status = ? WHERE id = ?`, [String(status), id]);
+
+      // Revert product statuses for items in this order back to 'unsold' if they were set to 'order_received'
+      try {
+        const [items] = await conn.query(`SELECT product_id FROM order_items WHERE order_id = ?`, [id]);
+        const prodIds = (Array.isArray(items) ? items.map(r => Number(r.product_id)).filter(Boolean) : []);
+        if (prodIds.length > 0) {
+          const ph = prodIds.map(() => '?').join(',');
+          await conn.query(
+            `UPDATE products SET status = 'unsold' WHERE id IN (${ph}) AND status = 'order_received'`,
+            prodIds
+          );
+        }
+      } catch (e) {
+        console.warn('failed to revert product statuses on cancel:', e && e.message ? e.message : e);
+      }
+
+      // Notify involved sellers (seller_sales)
+      try {
+        const [sellers] = await conn.query(
+          `SELECT DISTINCT seller_id FROM seller_sales WHERE order_id = ?`, [id]
+        );
+        for (const s of (Array.isArray(sellers) ? sellers : [])) {
+          try {
+            notify.send(s.seller_id, 'order_updated', { orderId: id, status: 'cancelled' });
+          } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('notify sellers error:', e && e.message ? e.message : e);
+      }
+    }
+
+    // Allow updating payment_status by buyer only as a simple patch (rare)
+    if (payment_status) {
+      if (Number(order.user_id) !== Number(userId)) {
+        // For now, prevent others from changing payment status
+      } else {
+        await conn.query(`UPDATE orders SET payment_status = ? WHERE id = ?`, [String(payment_status), id]);
+      }
+    }
+
+    await conn.commit();
+
+    // Return fresh order with items
+    const [fresh] = await pool.query(`SELECT * FROM orders WHERE id = ?`, [id]);
+    const orderRow = Array.isArray(fresh) && fresh.length > 0 ? fresh[0] : null;
+    const [orderItems] = await pool.query(`SELECT * FROM order_items WHERE order_id = ?`, [id]);
+    const itemsOut = (Array.isArray(orderItems) ? orderItems : []).map(it => ({
+      id: it.id,
+      product_id: it.product_id,
+      title: it.title,
+      price: it.price,
+      quantity: 1,
+    }));
+    res.json({ ...orderRow, items: itemsOut });
+  } catch (err) {
+    try { await conn.rollback(); } catch (e) {}
+    console.error('orders PUT error:', err && err.message ? err.message : err);
+    res.status(500).json({ message: 'Failed to update order' });
+  } finally {
+    conn.release();
   }
 });
 

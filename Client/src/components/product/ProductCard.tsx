@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface ProductCardProps {
   id: string;
@@ -99,16 +100,52 @@ export const ProductCard = ({
   };
 
   const handleToggleWishlist = () => {
-    const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
-    if (storedWishlist.includes(id)) {
-      const updatedWishlist = storedWishlist.filter((itemId: string) => itemId !== id);
-      localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
-      setLiked(false);
-    } else {
-      storedWishlist.push(id);
-      localStorage.setItem("wishlist", JSON.stringify(storedWishlist));
-      setLiked(true);
-    }
+    (async () => {
+      const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+      const pid = String(id);
+      // Try server sync when authenticated
+      try {
+        if (auth && auth.token) {
+          if (storedWishlist.includes(pid)) {
+            const resp = await fetch(`${apiBase}/api/wishlist/${pid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } });
+            if (!resp.ok) throw new Error('Failed');
+            const updated = storedWishlist.filter((itemId: string) => itemId !== pid);
+            localStorage.setItem("wishlist", JSON.stringify(updated));
+            setLiked(false);
+            try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updated.length } })); } catch {}
+            toast('Removed from wishlist');
+            return;
+          } else {
+            const resp = await fetch(`${apiBase}/api/wishlist`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({ productId: pid }) });
+            if (!resp.ok) throw new Error('Failed');
+            const updated = Array.isArray(storedWishlist) ? [...storedWishlist, pid] : [pid];
+            localStorage.setItem("wishlist", JSON.stringify(updated));
+            setLiked(true);
+            try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updated.length } })); } catch {}
+            toast.success('Added to wishlist');
+            return;
+          }
+        }
+      } catch (e) {
+        // server sync failed; fall back to local toggle with toast
+        console.warn('wishlist sync failed, falling back to local', e && e.message ? e.message : e);
+      }
+
+      // Local toggle fallback
+      if (storedWishlist.includes(pid)) {
+        const updatedWishlist = storedWishlist.filter((itemId: string) => itemId !== pid);
+        localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+        setLiked(false);
+        try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updatedWishlist.length } })); } catch {}
+        toast('Removed from wishlist');
+      } else {
+        const next = Array.isArray(storedWishlist) ? [...storedWishlist, pid] : [pid];
+        localStorage.setItem("wishlist", JSON.stringify(next));
+        setLiked(true);
+        try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: next.length } })); } catch {}
+        toast.success('Added to wishlist');
+      }
+    })();
   };
 
   return (
@@ -230,7 +267,7 @@ export const ProductCard = ({
             const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
             return (
               <Button
-                className={`w-full ${disabled ? 'opacity-60 cursor-not-allowed' : 'bg-thrift-green hover:bg-thrift-green/90'} text-white`}
+                className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'opacity-60 cursor-not-allowed bg-muted' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
                 size="sm"
                 onClick={handleAddToCart}
                 disabled={disabled}

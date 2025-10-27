@@ -502,7 +502,7 @@ const Shop = () => {
                         const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
                         return (
                           <Button
-                            className={`w-full ${disabled ? 'opacity-60 cursor-not-allowed' : 'bg-thrift-green hover:bg-thrift-green/90'}`}
+                            className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'opacity-60 cursor-not-allowed bg-muted' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
                             onClick={(e) => { e.stopPropagation(); if (!disabled) addToCart(listing); }}
                             aria-label={label}
                             disabled={disabled}

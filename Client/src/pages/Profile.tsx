@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,6 +155,8 @@ export default function Profile() {
     window.addEventListener('orderPlaced', onOrderPlaced as EventListener);
     return () => window.removeEventListener('orderPlaced', onOrderPlaced as EventListener);
   }, [loadMy]);
+
+  const navigate = useNavigate();
 
   if (!user) {
     return (
@@ -323,7 +326,7 @@ export default function Profile() {
                 <div key={String(o.id || o.ID || o.order_id)} className="border rounded">
                   <button
                     className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
-                    onClick={() => toggleExpandedMy(o.id || o.ID || o.order_id)}
+                    onClick={() => navigate(`/order/${o.id || o.ID || o.order_id}`)}
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-medium">Order #{o.id || o.ID || o.order_id}</span>
@@ -334,7 +337,10 @@ export default function Profile() {
                         {o.payment_status || o.paymentStatus || 'pending'}
                       </Badge>
                       <span className="font-semibold text-thrift-green">NPR {Number(o.total).toLocaleString()}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedMy.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${expandedMy.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); toggleExpandedMy(o.id || o.ID || o.order_id); }}
+                      />
                     </div>
                   </button>
                   {expandedMy.has(String(o.id || o.ID || o.order_id)) && (

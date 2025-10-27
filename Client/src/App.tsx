@@ -16,6 +16,7 @@ import { SignIn } from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ProductDetail from "./pages/ProductDetail";
+import OrderDetail from "./pages/OrderDetail";
 import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
 import MyListings from "./pages/MyListings";
@@ -69,6 +70,14 @@ const App = () => (
             <Route path="/sell" element={<Sell />} />
             <Route path="/donate" element={<Donate />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route
+              path="/order/:id"
+              element={
+                <ProtectedRoute>
+                  <OrderDetail />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
