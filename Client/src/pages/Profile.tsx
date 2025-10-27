@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Profile() {
   const { user, token, login } = useAuth();
+  const [activeTab, setActiveTab] = useState<'account' | 'security' | 'orders'>('account');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pwdSaving, setPwdSaving] = useState(false);
@@ -36,7 +37,10 @@ export default function Profile() {
       setMessage(null);
       const res = await fetch(`${apiBase}/api/users/me`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ id: user.id, name: form.name, phone: form.phone }),
       });
       const data = await res.json().catch(() => ({}));
@@ -91,13 +95,9 @@ export default function Profile() {
   };
 
   const [myOrders, setMyOrders] = useState<any[]>([]);
-  const [soldOrders, setSoldOrders] = useState<any[]>([]);
   const [loadingMy, setLoadingMy] = useState(false);
-  const [loadingSold, setLoadingSold] = useState(false);
   const [expandedMy, setExpandedMy] = useState<Set<number | string>>(new Set());
-  const [expandedSold, setExpandedSold] = useState<Set<number | string>>(new Set());
   const [hasLoadedMy, setHasLoadedMy] = useState(false);
-  const [hasLoadedSold, setHasLoadedSold] = useState(false);
 
   const toggleExpandedMy = (id: number | string) => {
     setExpandedMy(prev => {
@@ -107,16 +107,8 @@ export default function Profile() {
       return next;
     });
   };
-  const toggleExpandedSold = (id: number | string) => {
-    setExpandedSold(prev => {
-      const next = new Set(prev);
-      const key = String(id);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
 
-  const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
+  const headers = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : undefined as any), [token]);
   const apiBaseMemo = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const parseMaybeJson = (val: any) => {
@@ -131,8 +123,9 @@ export default function Profile() {
   const loadMy = useCallback(async () => {
     if (!token) return;
     setLoadingMy(true);
+    const ac = new AbortController();
     try {
-      const res = await fetch(`${apiBaseMemo}/api/orders/mine`, { headers });
+      const res = await fetch(`${apiBaseMemo}/api/orders/mine`, { headers, signal: ac.signal });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const normalized = (Array.isArray(data) ? data : []).map((o: any) => ({
@@ -141,35 +134,19 @@ export default function Profile() {
         shipping_address: parseMaybeJson(o.shipping_address) || o.shipping_address || o.shippingAddress || null,
       }));
       setMyOrders(normalized);
-    } catch {
-      setMyOrders([]);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') setMyOrders([]);
     } finally { setLoadingMy(false); setHasLoadedMy(true); }
-  }, [apiBaseMemo, headers, token]);
+    return () => ac.abort();
+  }, [apiBaseMemo, token, headers]);
 
-  const loadSold = useCallback(async () => {
-    if (!token) return;
-    setLoadingSold(true);
-    try {
-      const res = await fetch(`${apiBaseMemo}/api/orders/sold`, { headers });
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      const normalized = (Array.isArray(data) ? data : []).map((o: any) => ({
-        ...o,
-        items: parseMaybeJson(o.items) || [],
-        shipping_address: parseMaybeJson(o.shipping_address) || o.shipping_address || o.shippingAddress || null,
-      }));
-      setSoldOrders(normalized);
-    } catch {
-      setSoldOrders([]);
-    } finally { setLoadingSold(false); setHasLoadedSold(true); }
-  }, [apiBaseMemo, headers, token]);
 
   useEffect(() => {
-    if (token) {
-      loadMy();
-      loadSold();
-    }
-  }, [token, loadMy, loadSold]);
+    if (!token) return;
+    let cancelled = false;
+    (async () => { if (!cancelled) await loadMy(); })();
+    return () => { cancelled = true; };
+  }, [token, loadMy]);
 
   // React to order placements happening elsewhere in the app
   useEffect(() => {
@@ -189,39 +166,60 @@ export default function Profile() {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">My Profile</h1>
-        <div className="flex gap-2">
-          {!editing ? (
-            <Button variant="outline" onClick={() => setEditing(true)}>
-              <Edit3 className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-          ) : (
-            <Button onClick={onSaveProfile} disabled={saving}>
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save"}
-            </Button>
+      <h1 className="text-3xl text-[hsl(var(--thrift-green))]  font-bold mb-6">My Profile</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+        {/* Left navigation */}
+        <aside className="border rounded bg-card h-fit">
+          <nav className="flex md:flex-col">
+            <button
+              className={`text-left px-4 py-3 w-full border-b md:border-b-0 md:border-r-0 hover:bg-[hsl(var(--thrift-green))]/10 ${activeTab==='account' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`}
+              onClick={() => setActiveTab('account')}
+            >
+              Profile Information
+            </button>
+            <button
+              className={`text-left px-4 py-3 w-full border-b md:border-b-0 hover:bg-[hsl(var(--thrift-green))]/10 ${activeTab==='security' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`}
+              onClick={() => setActiveTab('security')}
+            >
+              Password & Security
+            </button>
+            <button
+              className={`text-left px-4 py-3 w-full hover:bg-[hsl(var(--thrift-green))]/10 ${activeTab==='orders' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`}
+              onClick={() => setActiveTab('orders')}
+            >
+              My Orders
+            </button>
+          </nav>
+        </aside>
+
+  {/* Right content (narrower width, centered) */}
+  <div className="space-y-6 max-w-2xl w-full mx-auto">
+          {message && (
+            <div className="text-sm text-thrift-green bg-thrift-green/10 border border-thrift-green/20 rounded p-3">
+              {message}
+            </div>
           )}
-          <Button variant="ghost" onClick={() => { loadMy(); loadSold(); }} title="Refresh">
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
 
-      {message && (
-        <div className="mb-6 text-sm text-thrift-green bg-thrift-green/10 border border-thrift-green/20 rounded p-3">
-          {message}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Account Info */}
-        <Card className="lg:col-span-2 border-none shadow-sm bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Account Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {activeTab === 'account' && (
+          <Card className="border-none shadow-sm bg-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Account Information</CardTitle>
+              <div className="flex gap-2">
+                {!editing ? (
+                  <Button variant="outline" onClick={() => setEditing(true)}>
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : (
+                  <Button onClick={onSaveProfile} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? "Saving..." : "Save"}
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
@@ -255,15 +253,16 @@ export default function Profile() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          )}
 
-        {/* Security */}
-        <Card className="border-none shadow-sm bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Security</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          {activeTab === 'security' && (
+          <Card className="border-none shadow-sm bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Security</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
             <label className="text-sm text-muted-foreground flex items-center gap-2">
               <Key className="w-4 h-4" /> Change Password
             </label>
@@ -293,19 +292,25 @@ export default function Profile() {
               <Trash2 className="w-4 h-4 mr-2" />
               Delete Account
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+          )}
 
-      {/* Orders placed by me */}
-      <Card className="mt-6 border-none shadow-sm bg-card">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            My Orders (I placed)
-            {myOrders.length > 0 && (<Badge variant="outline">{myOrders.length}</Badge>)}
-            {loadingMy && hasLoadedMy && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Orders that you placed on other sellers’ listings.</p>
+      {activeTab === 'orders' && (
+      <Card className="border-none shadow-sm bg-card">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              My Orders
+              {myOrders.length > 0 && (<Badge variant="outline">{myOrders.length}</Badge>)}
+              {loadingMy && hasLoadedMy && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
+            </CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => { loadMy(); }} title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!hasLoadedMy && loadingMy ? (
@@ -333,71 +338,21 @@ export default function Profile() {
                     </div>
                   </button>
                   {expandedMy.has(String(o.id || o.ID || o.order_id)) && (
-                  <div className="px-3 pb-3 text-sm space-y-2">
-                    {o.shipping_address && (
-                      <div className="text-muted-foreground">
-                        Ship to: {o.shipping_address.name || '-'} — {o.shipping_address.address || '-'}, {o.shipping_address.city || '-'} • {o.shipping_address.phone || '-'}
-                      </div>
-                    )}
-                    <div className="space-y-1">
-                      {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
-                        <div key={i} className="flex justify-between">
-                          <div>{it.title} × {it.quantity}</div>
-                          <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
+                    <div className="px-3 pb-3 text-sm space-y-2">
+                      {o.shipping_address && (
+                        <div className="text-muted-foreground">
+                          Ship to: {o.shipping_address.name || '-'} — {o.shipping_address.address || '-'}, {o.shipping_address.city || '-'} • {o.shipping_address.phone || '-'}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Orders for my products (items others ordered from me) */}
-      <Card className="mt-6 border-none shadow-sm bg-card">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            Orders for My Listings (Others bought)
-            {soldOrders.length > 0 && (<Badge variant="outline">{soldOrders.length}</Badge>)}
-            {loadingSold && hasLoadedSold && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Orders that include items from your listings. The total shown is for your items in that order.</p>
-        </CardHeader>
-        <CardContent>
-          {!hasLoadedSold && loadingSold ? (
-            <p>Loading sold items...</p>
-          ) : soldOrders.length === 0 ? (
-            <p className="text-muted-foreground">No items sold yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {soldOrders.map((o) => (
-                <div key={String(o.id || o.ID || o.order_id)} className="border rounded">
-                  <button
-                    className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
-                    onClick={() => toggleExpandedSold(o.id || o.ID || o.order_id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="font-medium">Order #{o.id || o.ID || o.order_id}</div>
-                      <div className="text-sm text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</div>
-                    </div>
-                    <div className="text-right flex items-center gap-3">
-                      <div className="text-sm text-muted-foreground">Buyer: {o.buyer_name || `ID ${o.buyer_id ?? 'N/A'}`}</div>
-                      <span className="font-semibold text-thrift-green">NPR {((o.items || []).reduce((s: number, it: any) => s + Number(it.price || 0) * Number(it.quantity || 1), 0)).toLocaleString()}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedSold.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`} />
-                    </div>
-                  </button>
-                  {expandedSold.has(String(o.id || o.ID || o.order_id)) && (
-                  <div className="px-3 pb-3 text-sm space-y-1">
-                    {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
-                      <div key={i} className="flex justify-between">
-                        <div>{it.title} × {it.quantity}</div>
-                        <div>NPR {Number(it.price * it.quantity).toLocaleString()}</div>
+                      )}
+                      <div className="space-y-1">
+                        {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
+                          <div key={i} className="flex justify-between">
+                            <div>{it.title}</div>
+                            <div>NPR {Number(it.price).toLocaleString()}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
                   )}
                 </div>
               ))}
@@ -405,6 +360,9 @@ export default function Profile() {
           )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
+          )}
+            </div>
+          </div>
+        </div>
+      );
+    }

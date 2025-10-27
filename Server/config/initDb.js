@@ -112,7 +112,6 @@ async function initDb() {
       product_id INT UNSIGNED NULL,
       title VARCHAR(255) NOT NULL,
       price DECIMAL(12,2) NOT NULL,
-      quantity INT NOT NULL,
       PRIMARY KEY (id),
       CONSTRAINT fk_order_items_order
         FOREIGN KEY (order_id) REFERENCES orders(id)
@@ -128,7 +127,6 @@ async function initDb() {
       product_id INT UNSIGNED NULL,
       title VARCHAR(255) NOT NULL,
       price DECIMAL(12,2) NOT NULL,
-      quantity INT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
       KEY idx_seller (seller_id),
@@ -184,12 +182,68 @@ async function initDb() {
       console.error('Failed running statement:', err);
     }
   }
+  // Strengthen seller_sales relations and indexes for clarity and performance
+  try {
+    // Ensure indexes exist
+    const ensureIndex = async (table, indexName, indexDefSql) => {
+      try {
+        const [idxRows] = await pool.query(
+          `SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+          [DB_NAME, table, indexName]
+        );
+        if (!Array.isArray(idxRows) || idxRows.length === 0) {
+          await pool.execute(`ALTER TABLE \`${table}\` ADD INDEX \`${indexName}\` ${indexDefSql}`);
+        }
+      } catch (e) {
+        console.warn(`Index ensure warning ${table}.${indexName}:`, e && e.message ? e.message : e);
+      }
+    };
+
+    await ensureIndex('seller_sales', 'idx_order', '(order_id)');
+    await ensureIndex('seller_sales', 'idx_product', '(product_id)');
+    await ensureIndex('seller_sales', 'idx_buyer', '(buyer_id)');
+
+    // Ensure foreign keys exist for buyer_id and product_id
+    const ensureFK = async (table, col, refTable, refCol, fkName, onDelete = 'SET NULL') => {
+      try {
+        const [fkRows] = await pool.query(
+          `SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+           WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+             AND REFERENCED_TABLE_NAME = ? AND REFERENCED_COLUMN_NAME = ?`,
+          [DB_NAME, table, col, refTable, refCol]
+        );
+        if (!Array.isArray(fkRows) || fkRows.length === 0) {
+          try {
+            await pool.execute(
+              `ALTER TABLE \`${table}\` ADD CONSTRAINT \`${fkName}\` FOREIGN KEY (\`${col}\`) REFERENCES \`${refTable}\`(\`${refCol}\`) ON DELETE ${onDelete}`
+            );
+          } catch (e) {
+            if (!(e && (e.code === 'ER_DUP_KEYNAME' || e.code === 'ER_CANT_CREATE_TABLE'))) {
+              console.warn(`FK add warning ${table}.${col} -> ${refTable}.${refCol}:`, e && e.message ? e.message : e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`FK check warning for ${table}.${col}:`, e && e.message ? e.message : e);
+      }
+    };
+
+    await ensureFK('seller_sales', 'buyer_id', 'users', 'id', 'fk_seller_sales_buyer', 'SET NULL');
+    await ensureFK('seller_sales', 'product_id', 'products', 'id', 'fk_seller_sales_product', 'SET NULL');
+  } catch (e) {
+    console.warn('seller_sales strengthen warning:', e && e.message ? e.message : e);
+  }
+  // Ensure additive columns exist for backward compatibility
+  // Note: quantity column has been deprecated for single-quantity thrift items.
+  // We no longer add or enforce it on new databases.
   // Ensure backward compatibility: add missing columns for existing databases
   await ensureColumn('users', 'phone VARCHAR(20) NULL', 'email');
   await ensureColumn('products', 'phone VARCHAR(20) NULL', 'seller');
   await ensureColumn('products', 'user_id INT UNSIGNED NULL', 'id');
   await ensureColumn('products', 'category VARCHAR(50) NULL', 'size');
   await ensureColumn('products', 'category_id INT UNSIGNED NULL', 'category');
+  // Minimal seller status support for listings: unsold | order_received | sold
+  await ensureColumn('products', "status VARCHAR(30) NOT NULL DEFAULT 'unsold'", 'image');
 
   // Ensure foreign key exists for products.user_id -> users.id
   try {

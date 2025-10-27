@@ -13,8 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Sell = () => {
   const [images, setImages] = useState<string[]>([]);
@@ -30,9 +29,6 @@ const Sell = () => {
   const [originalPrice, setOriginalPrice] = useState('');
   const [location, setLocation] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [myListings, setMyListings] = useState<any[]>([]);
-  const [myLoading, setMyLoading] = useState(false);
-  const [myError, setMyError] = useState<string | null>(null);
   const [submissionStatus, setSubmissionStatus] = useState<"idle" | "success" | "error">("idle");
   const [isVisible, setIsVisible] = useState(false);
   const formRef = React.useRef<HTMLDivElement>(null);
@@ -41,18 +37,7 @@ const Sell = () => {
   
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // Edit modal state
-  const [editOpen, setEditOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editFields, setEditFields] = useState({
-    title: '',
-    price: '',
-    brand: '',
-    size: '',
-    condition: '',
-    location: '',
-  });
+  // Removed in favor of dedicated My Listings page
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -76,29 +61,7 @@ const Sell = () => {
     };
   }, []);
 
-  // Load my listings
-  useEffect(() => {
-    let mounted = true;
-    const loadMine = async () => {
-      if (!token) return; // requires auth
-      setMyLoading(true);
-      setMyError(null);
-      try {
-        const resp = await fetch(`${apiBase}/api/products/mine`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error('Failed to fetch my listings');
-        const data = await resp.json();
-        if (mounted) setMyListings(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        if (mounted) setMyError(e?.message || 'Failed to fetch my listings');
-      } finally {
-        if (mounted) setMyLoading(false);
-      }
-    };
-    loadMine();
-    return () => { mounted = false; };
-  }, [apiBase, token]);
+  // Removed in favor of dedicated My Listings page
 
   
 
@@ -227,10 +190,21 @@ const Sell = () => {
           "mb-8 opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-500",
           isVisible && "opacity-100"
         )}>
-          <h1 className="text-3xl font-bold mb-2">Sell Your Item</h1>
-          <p className="text-muted-foreground">
-            List your pre-loved fashion items for sale in just a few steps
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Sell Your Item</h1>
+              <p className="text-muted-foreground">
+                List your pre-loved fashion items for sale in just a few steps
+              </p>
+            </div>
+            {token && (
+              <div className="pt-1">
+                <Button asChild variant="outline" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+                  <Link to="/my-listings">My Listings</Link>
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" ref={formRef}>
@@ -541,216 +515,7 @@ const Sell = () => {
           </div>
         </div>
       </main>
-      {/* My Listings Section */}
-      <section className="container mx-auto px-4 pb-12">
-        <h2 className="text-2xl font-semibold mb-4">My Listings</h2>
-        {!token && (
-          <p className="text-muted-foreground">Sign in to see your listings.</p>
-        )}
-        {token && (
-          <div>
-            {myLoading && <p>Loading...</p>}
-            {myError && <p className="text-destructive">{myError}</p>}
-            {!myLoading && !myError && (
-              myListings.length === 0 ? (
-                <p className="text-muted-foreground">You haven't listed any items yet.</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {myListings.map((p) => (
-                    <div key={p.id} className="border rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
-                      <a href={`/product/${p.id}`} className="block">
-                        <img
-                          src={(Array.isArray(p.images) && p.images[0]) || p.image || '/placeholder-product.jpg'}
-                          alt={p.title}
-                          className="h-40 w-full object-cover"
-                        />
-                      </a>
-                      <div className="p-3 space-y-2">
-                        <div className="font-medium truncate" title={p.title}>{p.title}</div>
-                        <div className="text-sm text-muted-foreground">NPR {Number(p.price||0).toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">{p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</div>
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              setEditItem(p);
-                              setEditFields({
-                                title: p.title || '',
-                                price: String(p.price ?? ''),
-                                brand: p.brand || '',
-                                size: p.size || '',
-                                condition: p.productCondition || '',
-                                location: p.location || '',
-                              });
-                              setEditOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              if (!confirm('Delete this listing? This cannot be undone.')) return;
-                              try {
-                                const resp = await fetch(`${apiBase}/api/products/${p.id}`, {
-                                  method: 'DELETE',
-                                  headers: { Authorization: `Bearer ${token}` },
-                                });
-                                if (!resp.ok) {
-                                  const t = await resp.text();
-                                  alert('Failed to delete: ' + t);
-                                  return;
-                                }
-                                setMyListings((prev) => prev.filter((it) => it.id !== p.id));
-                              } catch (e: any) {
-                                alert('Failed to delete: ' + (e?.message || 'Unknown error'));
-                              }
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </section>
-      {/* Edit Listing Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Listing</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Title</label>
-              <Input
-                value={editFields.title}
-                onChange={(e) => setEditFields((f) => ({ ...f, title: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Price (NPR)</label>
-              <Input
-                type="number"
-                value={editFields.price}
-                onChange={(e) => setEditFields((f) => ({ ...f, price: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Brand</label>
-              <Input
-                value={editFields.brand}
-                onChange={(e) => setEditFields((f) => ({ ...f, brand: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Condition</label>
-                <Select
-                  value={editFields.condition}
-                  onValueChange={(v) => setEditFields((f) => ({ ...f, condition: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select condition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New with tags</SelectItem>
-                    <SelectItem value="excellent">Excellent</SelectItem>
-                    <SelectItem value="good">Good</SelectItem>
-                    <SelectItem value="fair">Fair</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Size</label>
-                <Select
-                  value={editFields.size}
-                  onValueChange={(v) => setEditFields((f) => ({ ...f, size: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="xs">XS</SelectItem>
-                    <SelectItem value="s">S</SelectItem>
-                    <SelectItem value="m">M</SelectItem>
-                    <SelectItem value="l">L</SelectItem>
-                    <SelectItem value="xl">XL</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Location</label>
-              <Input
-                value={editFields.location}
-                onChange={(e) => setEditFields((f) => ({ ...f, location: e.target.value }))}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setEditOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={editSaving}
-              onClick={async () => {
-                if (!editItem) return;
-                setEditSaving(true);
-                try {
-                  const payload: any = {
-                    title: editFields.title,
-                    price: Number(editFields.price) || 0,
-                    brand: editFields.brand || null,
-                    size: editFields.size || null,
-                    productCondition: editFields.condition || null,
-                    location: editFields.location || null,
-                  };
-                  const resp = await fetch(`${apiBase}/api/products/${editItem.id}`, {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify(payload),
-                  });
-                  if (!resp.ok) {
-                    const t = await resp.text();
-                    alert('Failed to update: ' + t);
-                    return;
-                  }
-                  setMyListings((prev) => prev.map((it) => it.id === editItem.id ? {
-                    ...it,
-                    title: payload.title,
-                    price: payload.price,
-                    brand: payload.brand,
-                    size: payload.size,
-                    productCondition: payload.productCondition,
-                    location: payload.location,
-                  } : it));
-                  setEditOpen(false);
-                } catch (e: any) {
-                  alert('Failed to update: ' + (e?.message || 'Unknown error'));
-                } finally {
-                  setEditSaving(false);
-                }
-              }}
-            >
-              {editSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* My Listings section removed. Manage listings from the dedicated My Listings page. */}
       
     </div>
   );

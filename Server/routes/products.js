@@ -294,6 +294,18 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
       size: v => (v === undefined ? undefined : (v || null)),
       productCondition: v => (v === undefined ? undefined : (v || null)),
       location: v => (v === undefined ? undefined : (v || null)),
+      status: v => {
+        if (v === undefined) return undefined;
+        const str = String(v).toLowerCase().trim();
+        const map = new Map([
+          ['unsold', 'unsold'],
+          ['ordered', 'order_received'],
+          ['order_received', 'order_received'],
+          ['order received', 'order_received'],
+          ['sold', 'sold'],
+        ]);
+        return map.get(str) || 'unsold';
+      },
     };
 
     const sets = [];

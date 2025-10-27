@@ -286,6 +286,7 @@ export const Navbar = () => {
                     <span className="text-sm font-medium hidden lg:inline">{user?.name}</span>
                   </Link>
                 </Button>
+                {/** My Listings link moved under Sell page; removed from navbar. */}
                 <Button onClick={handleLogout} variant="outline" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
                   Logout
                 </Button>
@@ -371,6 +372,7 @@ export const Navbar = () => {
                     Profile
                   </Link>
                 </Button>
+                {/** My Listings link moved under Sell page; removed from mobile menu. */}
               </div>
 
               {isAuthenticated ? (

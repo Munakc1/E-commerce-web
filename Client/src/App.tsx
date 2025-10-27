@@ -18,6 +18,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import ProductDetail from "./pages/ProductDetail";
 import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
+import MyListings from "./pages/MyListings";
 import { Toaster as AppToaster } from "@/components/ui/sonner";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-listings"
+              element={
+                <ProtectedRoute>
+                  <MyListings />
                 </ProtectedRoute>
               }
             />

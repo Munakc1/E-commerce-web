@@ -4,9 +4,28 @@ const pool = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// Helper to extract userId from Bearer token
+function getUserIdFromToken(req) {
+  try {
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token || !process.env.JWT_SECRET) return null;
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = Number(payload.userId || payload.id) || null;
+    return userId;
+  } catch (e) {
+    return null;
+  }
+}
+
 router.put('/me', async (req, res) => {
-  const { id, name, phone } = req.body || {};
-  if (!id) return res.status(400).json({ error: 'id required' });
+  let { id, name, phone } = req.body || {};
+
+  // Prefer user id from JWT when available
+  const tokenUserId = getUserIdFromToken(req);
+  if (tokenUserId) id = tokenUserId;
+
+  if (!id) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await pool.query(`UPDATE users SET name = ?, phone = ? WHERE id = ?`, [name ?? null, phone ?? null, id]);
     const [rows] = await pool.query(`SELECT id, name, email, phone, created_at FROM users WHERE id = ?`, [id]);
@@ -18,7 +37,7 @@ router.put('/me', async (req, res) => {
 });
 
 module.exports = router;
- 
+
 // Change password
 router.post('/change-password', async (req, res) => {
   let { id, oldPassword, newPassword, currentPassword } = req.body || {};

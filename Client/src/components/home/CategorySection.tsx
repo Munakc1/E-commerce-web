@@ -1,52 +1,60 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useMemo } from "react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
 type Category = {
-  name: string;
-  count: string;
-  image: string;
-  color: string;
+  label: string;      // Display name
+  value: string;      // Query param used by Shop filter
+  image: string;      // Background image
+  color: string;      // Tailwind gradient overlay
+  count?: string;     // Optional count text
 };
 
 export const CategorySection = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Categories aligned with Shop filter values
+  const categories = useMemo<Category[]>(() => [
+    {
+      label: "Women's Clothing",
+      value: "women",
+      image: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1200&q=60",
+      color: "from-pink-500/30 to-purple-500/30",
+      count: "2,500+ items",
+    },
+    {
+      label: "Men's Clothing",
+      value: "men",
+      image: "https://images.unsplash.com/photo-1506629905853-6e8f2bd2a040?auto=format&fit=crop&w=1200&q=60",
+      color: "from-blue-500/30 to-cyan-500/30",
+      count: "1,800+ items",
+    },
+    {
+      label: "Kids' Clothing",
+      value: "kids",
+      image: "https://images.unsplash.com/photo-1596638082942-8e9c1d50710c?auto=format&fit=crop&w=1200&q=60",
+      color: "from-teal-500/30 to-blue-500/30",
+      count: "600+ items",
+    },
+    {
+      label: "Accessories",
+      value: "accessories",
+      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1200&q=60",
+      color: "from-green-500/30 to-emerald-500/30",
+      count: "1,200+ items",
+    },
+    {
+      label: "Shoes",
+      value: "shoes",
+      image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=1200&q=60",
+      color: "from-yellow-500/30 to-orange-500/30",
+      count: "950+ items",
+    },
+  ], []);
 
-  // Function to convert category name to URL-friendly slug
-  const getCategorySlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-");
+  const goToCategory = (value: string) => {
+    navigate(`/shop?category=${encodeURIComponent(value)}`);
   };
-
-  // Handle navigation to category page
-  const handleExplore = (categoryName: string) => {
-    const slug = getCategorySlug(categoryName);
-    navigate(`/category/${slug}`);
-  };
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        // Try backend first
-        const res = await fetch("/api/categories");
-        if (!res.ok) throw new Error("Backend not available");
-        const data = await res.json();
-        setCategories(data.categories || []);
-      } catch (err) {
-        console.warn("Using mock categories:", err);
-        const res = await fetch("/mock/data.json");
-        const data = await res.json();
-        setCategories(data.categories || []);
-      }
-    };
-
-    fetchCategories();
-  }, []);
 
   return (
     <section className="py-16 bg-thrift-cream/30">
@@ -66,12 +74,13 @@ export const CategorySection = () => {
           {categories.map((category, index) => (
             <Card
               key={index}
-              className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-none"
+              className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-none cursor-pointer"
+              onClick={() => goToCategory(category.value)}
             >
               <div className="relative h-48 overflow-hidden">
                 <img
                   src={category.image}
-                  alt={category.name}
+                  alt={category.label}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 <div
@@ -81,13 +90,13 @@ export const CategorySection = () => {
                 {/* Content Overlay */}
                 <div className="absolute inset-0 flex items-end p-6">
                   <div className="text-white">
-                    <h3 className="text-xl font-bold mb-1">{category.name}</h3>
-                    <p className="text-white/90 mb-3">{category.count}</p>
+                    <h3 className="text-xl font-bold mb-1">{category.label}</h3>
+                    {category.count && <p className="text-white/90 mb-3">{category.count}</p>}
                     <Button
                       size="sm"
                       className="bg-white/20 backdrop-blur text-white border-white/30 hover:bg-white hover:text-gray-900"
                       variant="outline"
-                      onClick={() => handleExplore(category.name)}
+                      onClick={(e) => { e.stopPropagation(); goToCategory(category.value); }}
                     >
                       Explore
                     </Button>

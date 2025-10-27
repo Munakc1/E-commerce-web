@@ -59,8 +59,6 @@ export default function Cart() {
     );
   }
 
-  // Quantity controls removed: thrift items are unique single-quantity
-
   function removeItem(id: any): void {
     setCart((prev) => {
       const idStr = String(id);

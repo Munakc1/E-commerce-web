@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@mui/material";
 import ArrowRightAltIcon from "@mui/icons-material/ArrowRightAlt";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -23,6 +24,7 @@ export const FeaturedProducts = () => {
   const [moreProducts, setMoreProducts] = useState<Product[]>([]);
   const [showAll, setShowAll] = useState(false);
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const navigate = useNavigate();
 
   // Fetch data from backend, fallback to mock
   useEffect(() => {
@@ -70,10 +72,7 @@ export const FeaturedProducts = () => {
   }, []);
 
   const handleViewAll = () => {
-    if (!showAll) {
-      setProducts([...products, ...moreProducts]);
-      setShowAll(true);
-    }
+    navigate("/shop");
   };
 
   return (

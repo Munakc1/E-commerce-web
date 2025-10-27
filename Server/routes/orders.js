@@ -68,12 +68,11 @@ router.post("/", async (req, res) => {
         const productId = it.productId || null;
         const title = it.title || it.name || "Unknown";
         const price = Number(it.price || 0);
-        const quantity = Number(it.quantity || 1);
-        placeholders.push("(?, ?, ?, ?, ?)");
-        params.push(orderId, productId, title, price, quantity);
+        placeholders.push("(?, ?, ?, ?)");
+        params.push(orderId, productId, title, price);
       }
       await conn.query(
-        `INSERT INTO order_items (order_id, product_id, title, price, quantity) VALUES ${placeholders.join(", ")}`,
+        `INSERT INTO order_items (order_id, product_id, title, price) VALUES ${placeholders.join(", ")}`,
         params
       );
 
@@ -97,18 +96,32 @@ router.post("/", async (req, res) => {
           if (!sellerId) continue; // skip items without known seller
           const title = it.title || it.name || 'Unknown';
           const price = Number(it.price || 0);
-          const quantity = Number(it.quantity || 1);
+          // seller_id, order_id, buyer_id, product_id, title, price
           salesValues.push('(?, ?, ?, ?, ?, ?)');
-          salesParams.push(sellerId, orderId, authUserId != null ? authUserId : (userId || null), pid, title, price, quantity);
+          salesParams.push(sellerId, orderId, authUserId != null ? authUserId : (userId || null), pid, title, price);
         }
         if (salesValues.length > 0) {
           await conn.query(
-            `INSERT INTO seller_sales (seller_id, order_id, buyer_id, product_id, title, price, quantity) VALUES ${salesValues.join(', ')}`,
+            `INSERT INTO seller_sales (seller_id, order_id, buyer_id, product_id, title, price) VALUES ${salesValues.join(', ')}`,
             salesParams
           );
         }
       } catch (e) {
         console.warn('seller_sales insert warning:', e && e.message ? e.message : e);
+      }
+
+      // Update product status to 'order_received' for items included in the order
+      try {
+        const updIds = Array.from(new Set(items.map(it => Number(it.productId)).filter(id => id && !Number.isNaN(id))));
+        if (updIds.length > 0) {
+          const ph2 = updIds.map(() => '?').join(',');
+          await conn.query(
+            `UPDATE products SET status = 'order_received' WHERE id IN (${ph2}) AND (status IS NULL OR status = 'unsold')`,
+            updIds
+          );
+        }
+      } catch (e) {
+        console.warn('product status update warning:', e && e.message ? e.message : e);
       }
     }
 
@@ -146,7 +159,8 @@ router.get("/", async (req, res) => {
         product_id: it.product_id,
         title: it.title,
         price: it.price,
-        quantity: it.quantity,
+        // quantity is deprecated; assume 1 for backward compatibility
+        quantity: 1,
       });
     }
     const out = orderRows.map(o => ({ ...o, items: itemsByOrder.get(o.id) || [] }));
@@ -183,7 +197,7 @@ router.get('/mine', async (req, res) => {
         product_id: it.product_id,
         title: it.title,
         price: it.price,
-        quantity: it.quantity,
+        quantity: 1,
       });
     }
     const out = orderRows.map(o => ({ ...o, items: itemsByOrder.get(o.id) || [] }));
@@ -201,10 +215,13 @@ router.get('/sold', async (req, res) => {
   try {
     // Find orders that have seller_sales for this seller
     const [orderRows] = await pool.query(
-      `SELECT DISTINCT s.order_id, o.created_at, o.user_id AS buyer_id, u.name AS buyer_name
+      `SELECT DISTINCT s.order_id,
+              o.created_at,
+              COALESCE(s.buyer_id, o.user_id) AS buyer_id,
+              u.name AS buyer_name
        FROM seller_sales s
        JOIN orders o ON o.id = s.order_id
-       LEFT JOIN users u ON u.id = o.user_id
+       LEFT JOIN users u ON u.id = COALESCE(s.buyer_id, o.user_id)
        WHERE s.seller_id = ?
        ORDER BY o.created_at DESC`,
       [userId]
@@ -214,7 +231,7 @@ router.get('/sold', async (req, res) => {
 
     const ph = orderIds.map(() => '?').join(',');
     const [itemRows] = await pool.query(
-      `SELECT s.order_id, s.product_id, s.title, s.price, s.quantity
+      `SELECT s.order_id, s.product_id, s.title, s.price
        FROM seller_sales s
        WHERE s.seller_id = ? AND s.order_id IN (${ph})`,
       [userId, ...orderIds]
@@ -227,7 +244,7 @@ router.get('/sold', async (req, res) => {
         product_id: it.product_id,
         title: it.title,
         price: it.price,
-        quantity: it.quantity,
+        quantity: 1,
       });
     }
 

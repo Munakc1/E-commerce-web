@@ -97,7 +97,7 @@ export default function Checkout() {
 
       const payload = {
         userId: user?.id ?? null,
-        items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, quantity: 1, image: i.image })),
+  items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, image: i.image })),
         subtotal: Math.round(subtotal),
         tax: Math.round(taxes),
         shipping: Math.round(shipping),
