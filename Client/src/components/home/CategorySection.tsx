@@ -25,14 +25,14 @@ export const CategorySection = () => {
     {
       label: "Men's Clothing",
       value: "men",
-      image: "https://images.unsplash.com/photo-1506629905853-6e8f2bd2a040?auto=format&fit=crop&w=1200&q=60",
+      image: "images/men.jpeg",
       color: "from-blue-500/30 to-cyan-500/30",
       count: "1,800+ items",
     },
     {
       label: "Kids' Clothing",
       value: "kids",
-      image: "https://images.unsplash.com/photo-1596638082942-8e9c1d50710c?auto=format&fit=crop&w=1200&q=60",
+      image: "images/kids.jpg",
       color: "from-teal-500/30 to-blue-500/30",
       count: "600+ items",
     },
@@ -47,7 +47,6 @@ export const CategorySection = () => {
       label: "Shoes",
       value: "shoes",
       image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=1200&q=60",
-      // use site theme green accents instead of yellow/orange
       color: "from-emerald-500/30 to-emerald-600/30",
       count: "950+ items",
     },

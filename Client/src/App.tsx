@@ -22,6 +22,8 @@ import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
 import MyListings from "./pages/MyListings";
 import { Toaster as AppToaster } from "@/components/ui/sonner";
+import { AdminRoute } from "./components/AdminRoute";
+import AdminPage from "./pages/admin/Admin";
 
 const queryClient = new QueryClient();
 
@@ -78,6 +80,14 @@ const App = () => (
                 <ProtectedRoute>
                   <OrderDetail />
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminPage />
+                </AdminRoute>
               }
             />
             <Route path="*" element={<NotFound />} />

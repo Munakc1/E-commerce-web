@@ -205,7 +205,7 @@ export default function ProductDetail() {
                 const disabled = !!st && st !== 'unsold';
                 const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
                 return (
-                  <Button className={`flex-1 py-2 px-4 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'opacity-60 cursor-not-allowed bg-muted' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`} onClick={addToCart} disabled={disabled}>
+                  <Button className={`flex-1 py-2 px-4 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`} onClick={addToCart} disabled={disabled}>
                     <ShoppingCart className="w-5 h-5 mr-2" />
                     {label}
                   </Button>

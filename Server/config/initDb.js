@@ -233,11 +233,10 @@ async function initDb() {
   } catch (e) {
     console.warn('seller_sales strengthen warning:', e && e.message ? e.message : e);
   }
-  // Ensure additive columns exist for backward compatibility
-  // Note: quantity column has been deprecated for single-quantity thrift items.
-  // We no longer add or enforce it on new databases.
-  // Ensure backward compatibility: add missing columns for existing databases
+  
   await ensureColumn('users', 'phone VARCHAR(20) NULL', 'email');
+  // Basic RBAC: user role column
+  await ensureColumn('users', "role VARCHAR(30) NOT NULL DEFAULT 'buyer'", 'phone');
   await ensureColumn('products', 'phone VARCHAR(20) NULL', 'seller');
   await ensureColumn('products', 'user_id INT UNSIGNED NULL', 'id');
   await ensureColumn('products', 'category VARCHAR(50) NULL', 'size');
@@ -324,6 +323,23 @@ async function initDb() {
     }
   } catch (e) {
     console.warn('Backfill categories warning:', e && e.message ? e.message : e);
+  }
+  // Optional admin bootstrap: promote a specific email to admin if no admin exists yet
+  try {
+    const [admins] = await pool.query("SELECT COUNT(*) AS cnt FROM users WHERE role='admin'");
+    const adminCount = Array.isArray(admins) && admins[0] ? Number(admins[0].cnt) : 0;
+    const seedEmail = (process.env.ADMIN_EMAIL || '').trim();
+    if (adminCount === 0 && seedEmail) {
+      const [u] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [seedEmail]);
+      if (Array.isArray(u) && u.length > 0) {
+        await pool.query("UPDATE users SET role='admin' WHERE id = ?", [u[0].id]);
+        console.log(`Admin bootstrap: promoted ${seedEmail} to admin.`);
+      } else {
+        console.warn(`Admin bootstrap: ADMIN_EMAIL=${seedEmail} not found in users table. Sign up this email first, then restart server.`);
+      }
+    }
+  } catch (e) {
+    console.warn('admin bootstrap warning:', e && e.message ? e.message : e);
   }
   console.log('✅ Database and tables are ready');
 }

@@ -33,10 +33,16 @@ router.post("/signup", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
+    // Insert user (role defaults to 'buyer' via schema)
     const [result] = await pool.execute(
       "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
       [name, email, hashedPassword]
+    );
+
+    // Fetch created user (include role)
+    const [urows] = await pool.execute(
+      "SELECT id, name, email, phone, role FROM users WHERE id = ?",
+      [result.insertId]
     );
 
     // Generate JWT token
@@ -50,7 +56,7 @@ router.post("/signup", async (req, res) => {
       success: true, 
       message: "Account created successfully",
       token,
-      user: { id: result.insertId, name, email }
+      user: { id: result.insertId, name: urows[0]?.name || name, email: urows[0]?.email || email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer' }
     });
 
   } catch (err) {
@@ -94,11 +100,14 @@ router.post("/signin", async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    // Return user with role
+    const [urows] = await pool.execute("SELECT id, name, email, phone, role FROM users WHERE id = ?", [user.id]);
+
     res.json({ 
       success: true, 
       message: "Login successful", 
       token,
-      user: { id: user.id, name: user.name, email: user.email } 
+      user: { id: urows[0]?.id || user.id, name: urows[0]?.name || user.name, email: urows[0]?.email || user.email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer' } 
     });
   } catch (err) {
     console.error("SignIn error:", err);

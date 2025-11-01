@@ -28,7 +28,7 @@ router.put('/me', async (req, res) => {
   if (!id) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await pool.query(`UPDATE users SET name = ?, phone = ? WHERE id = ?`, [name ?? null, phone ?? null, id]);
-    const [rows] = await pool.query(`SELECT id, name, email, phone, created_at FROM users WHERE id = ?`, [id]);
+    const [rows] = await pool.query(`SELECT id, name, email, phone, role, created_at FROM users WHERE id = ?`, [id]);
     return res.json({ user: rows[0] || null });
   } catch (e) {
     console.error('PUT /api/users/me error:', e);
@@ -37,6 +37,19 @@ router.put('/me', async (req, res) => {
 });
 
 module.exports = router;
+
+// Return current user profile
+router.get('/me', async (req, res) => {
+  const id = getUserIdFromToken(req);
+  if (!id) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await pool.query(`SELECT id, name, email, phone, role, created_at FROM users WHERE id = ?`, [id]);
+    return res.json({ user: rows[0] || null });
+  } catch (e) {
+    console.error('GET /api/users/me error:', e);
+    return res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
 
 // Change password
 router.post('/change-password', async (req, res) => {

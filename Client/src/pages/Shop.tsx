@@ -443,7 +443,7 @@ const Shop = () => {
                 asChild
                 className="mt-4 bg-thrift-green hover:bg-thrift-green/90"
               >
-                <a href="/sell">List an Item</a>
+                <a href="/Shop">Find Other Items</a>
               </Button>
             </div>
           ) : (
@@ -502,7 +502,7 @@ const Shop = () => {
                         const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
                         return (
                           <Button
-                            className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'opacity-60 cursor-not-allowed bg-muted' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
+                            className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
                             onClick={(e) => { e.stopPropagation(); if (!disabled) addToCart(listing); }}
                             aria-label={label}
                             disabled={disabled}

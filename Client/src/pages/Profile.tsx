@@ -154,8 +154,13 @@ export default function Profile() {
   // React to order placements happening elsewhere in the app
   useEffect(() => {
     const onOrderPlaced = () => { loadMy(); };
+    const onOrderUpdated = (e: any) => { loadMy(); };
     window.addEventListener('orderPlaced', onOrderPlaced as EventListener);
-    return () => window.removeEventListener('orderPlaced', onOrderPlaced as EventListener);
+    window.addEventListener('orderUpdated', onOrderUpdated as EventListener);
+    return () => {
+      window.removeEventListener('orderPlaced', onOrderPlaced as EventListener);
+      window.removeEventListener('orderUpdated', onOrderUpdated as EventListener);
+    };
   }, [loadMy]);
 
   const navigate = useNavigate();

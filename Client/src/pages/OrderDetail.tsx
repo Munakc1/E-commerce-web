@@ -70,6 +70,8 @@ export default function OrderDetail() {
       const updated = await res.json();
       try { if (typeof updated.shipping_address === 'string') updated.shipping_address = JSON.parse(updated.shipping_address || '{}'); } catch(e){ updated.shipping_address = updated.shipping_address || {}; }
       setOrder(updated);
+  // Notify other UI (Profile list) to refresh
+  try { window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { id: updated.id, status: updated.status || 'cancelled' } })); } catch (e) {}
       toast({ title: 'Order cancelled', description: `Order #${order.id} marked cancelled.` });
     } catch (e: any) {
       toast({ title: 'Unable to cancel', description: e?.message || 'Cancel failed' });
