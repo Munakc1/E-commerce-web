@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@mui/material";
 import ArrowRightAltIcon from "@mui/icons-material/ArrowRightAlt";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -16,23 +17,50 @@ type Product = {
   images: string[];
   seller: string;
   location: string;
+  status?: string;
 };
 
 export const FeaturedProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [moreProducts, setMoreProducts] = useState<Product[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const navigate = useNavigate();
 
   // Fetch data from backend, fallback to mock
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Try backend API (replace with your real endpoint later)
-        const res = await fetch("/api/products");
+        // Try backend API
+        const res = await fetch(`${apiBase}/api/products`);
         if (!res.ok) throw new Error("Backend not available");
         const data = await res.json();
-        setProducts(data.initialProducts || []);
-        setMoreProducts(data.moreProducts || []);
+        if (Array.isArray(data)) {
+          // Map server rows to Product shape if needed
+          const mapped: Product[] = data.map((p: any) => ({
+            id: String(p.id),
+            title: p.title,
+            price: Number(p.price ?? 0),
+            originalPrice: p.originalPrice != null ? Number(p.originalPrice) : 0,
+            brand: p.brand || "",
+            size: p.size || "",
+            condition: (p.productCondition || p.condition || "Good") as any,
+            images: Array.isArray(p.images)
+              ? p.images
+              : (typeof p.images === 'string' && p.images.startsWith('[')
+                  ? JSON.parse(p.images)
+                  : (p.image ? [p.image] : [])),
+            seller: p.seller || "",
+            location: p.location || "",
+            status: (p.status || '').toString(),
+          }));
+          setProducts(mapped.slice(0, 8));
+          setMoreProducts(mapped.slice(8));
+        } else {
+          // Fallback to mock-compatible shape
+          setProducts(data.initialProducts || []);
+          setMoreProducts(data.moreProducts || []);
+        }
       } catch (err) {
         console.warn("Using mock data instead:", err);
         const res = await fetch("/mock/data.json");
@@ -46,10 +74,7 @@ export const FeaturedProducts = () => {
   }, []);
 
   const handleViewAll = () => {
-    if (!showAll) {
-      setProducts([...products, ...moreProducts]);
-      setShowAll(true);
-    }
+    navigate("/shop");
   };
 
   return (
@@ -69,7 +94,7 @@ export const FeaturedProducts = () => {
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {products.map((product) => (
-            <ProductCard key={product.id} {...product} />
+            <ProductCard key={product.id} {...product} status={product.status} />
           ))}
         </div>
 

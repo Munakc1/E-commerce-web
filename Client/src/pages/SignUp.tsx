@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,36 +15,50 @@ export const SignUp = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth(); // ← Add this line
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Frontend validation
+    if (!name.trim()) {
+      setError("Name is required");
+      return;
+    }
+    if (!email.includes("@")) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const response = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Sign-up failed');
+        // Show backend error message
+        throw new Error(data.error || data.message || 'Sign-up failed');
       }
 
-      const data = await response.json();
-      if (data.success) {
-        if (data.token) {
-          localStorage.setItem('authToken', data.token); // Store the real token if provided
-        }
-        navigate("/signin");
-      } else {
-        throw new Error(data.message || 'Sign-up failed');
+      if (data.success && data.token) {
+        login(data.token, data.user); // ← Change this line
+        navigate("/"); // ← Change to home page
       }
     } catch (err) {
-      setError(err.message || 'An error occurred during sign-up');
+      // Show specific error message
+      setError(err.message || 'Network error. Please try again.');
+      console.error('Signup error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -97,11 +112,12 @@ export const SignUp = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Create a password (min 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
                   required
+                  minLength={6}
                 />
               </div>
             </div>

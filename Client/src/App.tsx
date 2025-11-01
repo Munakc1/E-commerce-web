@@ -1,44 +1,101 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { Navbar } from "./components/layout/Navbar";
+import ScrollToTop from "./components/ScrollToTop";
+import { Footer } from "./components/layout/Footer";
+import { Home } from "./pages/Home";
 import Shop from "./pages/Shop";
+import  Cart  from "./pages/Cart";
+import  Checkout  from "./pages/Checkout";
 import About from "./pages/About";
+import Contact from "./pages/Contact";
+import Profile from "./pages/Profile";
 import Sell from "./pages/Sell";
 import Donate from "./pages/Donate";
-import NotFound from "./pages/NotFound";
-import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
-import { Cart } from "./pages/Cart";
-import { Checkout } from "./pages/Checkout";
-// import { Wishlist } from "./pages/Wishlist";
+import { SignIn } from "./pages/SignIn";
+import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import ProductDetail from "./pages/ProductDetail";
+import OrderDetail from "./pages/OrderDetail";
+import Messages from "./pages/Messages";
+import Wishlist from "./pages/Wishlist";
+import MyListings from "./pages/MyListings";
+import { Toaster as AppToaster } from "@/components/ui/sonner";
+import { AdminRoute } from "./components/AdminRoute";
+import AdminPage from "./pages/admin/Admin";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/sell" element={<Sell />} />
-          <Route path="/donate" element={<Donate />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          {/* <Route path="/wishlist" element={<Wishlist />} /> */}
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <Router>
+      <div className="min-h-screen flex flex-col bg-background">
+  <ScrollToTop />
+  {/* Global toast renderer (themed) */}
+  <AppToaster position="bottom-right" duration={2500} />
+        <Navbar />
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/wishlist" element={<Wishlist />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-listings"
+              element={
+                <ProtectedRoute>
+                  <MyListings />
+                </ProtectedRoute>
+              }
+            />
+            {/* If you want these public, do NOT wrap with ProtectedRoute */}
+            <Route path="/sell" element={<Sell />} />
+            <Route path="/donate" element={<Donate />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route
+              path="/order/:id"
+              element={
+                <ProtectedRoute>
+                  <OrderDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminPage />
+                </AdminRoute>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
   </QueryClientProvider>
 );
 

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 interface Listing {
   id: string;
@@ -21,32 +22,171 @@ interface Listing {
   location: string;
   images: string[];
   createdAt: string;
+  status?: string;
 }
+
+// Canonical category mapping to keep Home -> Shop links and backend data consistent
+const CATEGORY_CANON = ["women", "men", "kids", "accessories", "shoes"] as const;
+type CanonCategory = typeof CATEGORY_CANON[number] | "all";
+
+const canonicalizeCategory = (raw: string | null | undefined): CanonCategory => {
+  const v = String(raw || "").trim().toLowerCase();
+  if (!v) return "all";
+  // strip punctuation like apostrophes and trailing words like "clothing"
+  const cleaned = v
+    .replace(/’/g, "'")
+    .replace(/[^a-z0-9\s']/g, " ")
+    .replace(/\b(clothes|clothing|wear|apparel|items|category)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // direct matches
+  if ((CATEGORY_CANON as readonly string[]).includes(cleaned)) return cleaned as CanonCategory;
+
+  // common aliases
+  if (/^women|^woman|^womens|^lad(y|ies)/.test(cleaned)) return "women";
+  if (/^men|^man|^mens|^male|^gent/.test(cleaned)) return "men";
+  if (/^kid|^child|^children|^boys?|^girls?/.test(cleaned)) return "kids";
+  if (/^shoe|^sneaker|^boot|^heels?/.test(cleaned)) return "shoes";
+  if (/^accessor|^bag|^jewel|^belt|^hat|^cap|^scarf/.test(cleaned)) return "accessories";
+
+  return "all";
+};
+
+const normalizeCategoryParam = (raw: string | null | undefined): CanonCategory => {
+  const c = canonicalizeCategory(raw);
+  return (CATEGORY_CANON as readonly string[]).includes(c as string) ? c : "all";
+};
 
 const Shop = () => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("default");
   const [isVisible, setIsVisible] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated, token } = useAuth();
+  const initialQ = (searchParams.get('q') || '').trim();
+  const initialCat = (searchParams.get('category') || 'all').toLowerCase();
+  const [categoryFilter, setCategoryFilter] = useState<string>(initialCat);
+  const [searchQuery, setSearchQuery] = useState(initialQ);
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("wishlist") || "[]");
+      return new Set(Array.isArray(raw) ? raw.map(String) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
 
-  // Fetch listings from localStorage
+  // Fetch listings from backend products; fallback to localStorage
   useEffect(() => {
-    const storedListings = JSON.parse(localStorage.getItem("listings") || "[]");
-    setListings(storedListings);
-    setFilteredListings(storedListings);
-  }, []);
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/products`);
+        if (!res.ok) throw new Error("backend not available");
+        const data = await res.json();
+        const items: Listing[] = (Array.isArray(data) ? data : []).map((p: any) => ({
+          id: String(p.id),
+          title: p.title,
+          description: p.description || "",
+          category: canonicalizeCategory(p.category || p.Category || ''),
+          brand: p.brand || "",
+          condition: p.productCondition || p.condition || "Good",
+          size: p.size || "",
+          price: Number(p.price ?? 0),
+          originalPrice: p.originalPrice != null ? Number(p.originalPrice) : null,
+          location: p.location || "",
+          images: Array.isArray(p.images)
+            ? p.images
+            : (typeof p.images === 'string' && p.images.startsWith('[')
+                ? JSON.parse(p.images)
+                : (p.image ? [p.image] : [])),
+          createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+          status: (p.status || p.product_status || '').toString(),
+        }));
+        setListings(items);
+        setFilteredListings(items);
+      } catch (e) {
+        // fallback to localStorage if server not reachable
+        const raw = JSON.parse(localStorage.getItem("listings") || "[]");
+        const stored: Listing[] = (Array.isArray(raw) ? raw : []).map((p: any) => ({
+          id: String(p.id),
+          title: p.title,
+          description: p.description || "",
+          category: canonicalizeCategory(p.category || p.Category || ''),
+          brand: p.brand || "",
+          condition: p.productCondition || p.condition || "Good",
+          size: p.size || "",
+          price: Number(p.price ?? 0),
+          originalPrice: p.originalPrice != null ? Number(p.originalPrice) : null,
+          location: p.location || "",
+          images: Array.isArray(p.images)
+            ? p.images
+            : (typeof p.images === 'string' && p.images.startsWith('[')
+                ? JSON.parse(p.images)
+                : (p.image ? [p.image] : [])),
+          createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+          status: (p.status || p.product_status || '').toString(),
+        }));
+        setListings(stored);
+        setFilteredListings(stored);
+      }
+    };
+    fetchProducts();
+  }, [apiBase]);
+
+  // Load wishlist ids from API if authenticated; fallback to localStorage
+  useEffect(() => {
+    const loadWishlist = async () => {
+      try {
+        if (isAuthenticated && token) {
+          const resp = await fetch(`${apiBase}/api/wishlist`, { headers: { Authorization: `Bearer ${token}` } });
+          if (resp.ok) {
+            const ids = await resp.json();
+            setWishlistIds(new Set(Array.isArray(ids) ? ids.map(String) : []));
+            return;
+          }
+        }
+      } catch {}
+      try {
+        const raw = JSON.parse(localStorage.getItem("wishlist") || "[]");
+        setWishlistIds(new Set(Array.isArray(raw) ? raw.map(String) : []));
+      } catch {
+        setWishlistIds(new Set());
+      }
+    };
+    loadWishlist();
+  }, [apiBase, isAuthenticated, token]);
+
+  // Keep category and search in sync with URL (on navigation/back/links)
+  useEffect(() => {
+    const qParam = (searchParams.get('q') || '').trim();
+    const catParam = normalizeCategoryParam(searchParams.get('category'));
+    if (qParam !== searchQuery) setSearchQuery(qParam);
+    if (catParam !== categoryFilter) setCategoryFilter(catParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Apply filters and sorting
   useEffect(() => {
     let updatedListings = [...listings];
 
+    // Apply search query (title, description, brand, category, location)
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      updatedListings = updatedListings.filter((l) => {
+        const hay = `${l.title} ${l.description} ${l.brand} ${l.category} ${l.location}`.toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
     // Filter by category
     if (categoryFilter !== "all") {
-      updatedListings = updatedListings.filter((listing) => listing.category === categoryFilter);
+      updatedListings = updatedListings.filter((listing) => canonicalizeCategory(listing.category) === categoryFilter);
     }
 
     // Filter by price range
@@ -67,7 +207,39 @@ const Shop = () => {
     }
 
     setFilteredListings(updatedListings);
-  }, [categoryFilter, priceFilter, sortOrder, listings]);
+  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery]);
+
+  // Reflect category/search in URL for shareability (only when changed)
+  useEffect(() => {
+    const curQ = (searchParams.get('q') || '').trim();
+    const curC = normalizeCategoryParam(searchParams.get('category'));
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (categoryFilter && categoryFilter !== 'all') {
+      if (curC !== categoryFilter) {
+        next.set('category', categoryFilter);
+        changed = true;
+      }
+    } else if (searchParams.has('category')) {
+      next.delete('category');
+      changed = true;
+    }
+
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      if (curQ !== trimmed) {
+        next.set('q', trimmed);
+        changed = true;
+      }
+    } else if (searchParams.has('q')) {
+      next.delete('q');
+      changed = true;
+    }
+
+    if (changed) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, searchQuery, searchParams]);
 
   // Intersection observer for animations
   useEffect(() => {
@@ -92,23 +264,84 @@ const Shop = () => {
     };
   }, []);
 
-  // Add to cart and redirect to cart page
+  // Add to cart: single-quantity thrift items (no duplicates)
   const addToCart = (listing: Listing) => {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const cartItem = {
-      id: listing.id,
+    const st = String(listing.status || '').toLowerCase();
+    if (st && st !== 'unsold') {
+      toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
+      return;
+    }
+    const cart: Array<{ id: string; title: string; price: number; image: string; quantity?: number }> =
+      JSON.parse(localStorage.getItem("cart") || "[]");
+
+    const idx = cart.findIndex((c) => String(c.id) === String(listing.id));
+    if (idx >= 0) {
+      // Already in cart: keep single item, notify
+      try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
+      toast.info("Item already in cart", { description: listing.title });
+      return;
+    }
+    cart.push({
+      id: String(listing.id),
       title: listing.title,
       price: listing.price,
       image: listing.images[0] || "",
       quantity: 1,
-    };
-    localStorage.setItem("cart", JSON.stringify([...cart, cartItem]));
-    navigate("/cart");
+    });
+    localStorage.setItem("cart", JSON.stringify(cart));
+    try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: cart.length } })); } catch {}
+    toast.success("Added to cart", { description: listing.title });
+  };
+
+  const toggleWishlist = async (id: string) => {
+    const pid = String(id);
+    if (isAuthenticated && token) {
+      try {
+        if (wishlistIds.has(pid)) {
+          const resp = await fetch(`${apiBase}/api/wishlist/${pid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+          if (!resp.ok) throw new Error('Failed');
+          setWishlistIds(prev => { const next = new Set(prev); next.delete(pid); return next; });
+          window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: Math.max(0, wishlistIds.size - 1) } }));
+          toast("Removed from wishlist");
+          return;
+        } else {
+          const resp = await fetch(`${apiBase}/api/wishlist`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ productId: pid })
+          });
+          if (!resp.ok) throw new Error('Failed');
+          setWishlistIds(prev => { const next = new Set(prev); next.add(pid); return next; });
+          window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: wishlistIds.size + 1 } }));
+          toast.success("Added to wishlist");
+          return;
+        }
+      } catch {
+        toast.error("Wishlist update failed", { description: "Using local fallback." });
+        // fall back to local behavior on failure
+      }
+    }
+    // Fallback local toggle
+    setWishlistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) {
+        next.delete(pid);
+        toast("Removed from wishlist");
+      } else {
+        next.add(pid);
+        toast.success("Added to wishlist");
+      }
+      try {
+        localStorage.setItem("wishlist", JSON.stringify(Array.from(next)));
+        window.dispatchEvent(new CustomEvent("wishlistUpdated", { detail: { count: next.size } }));
+      } catch {}
+      return next;
+    });
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+    
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div
@@ -131,10 +364,19 @@ const Shop = () => {
           )}
         >
           <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Search</label>
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search items, brands, locations..."
+              aria-label="Search listings"
+            />
+          </div>
+          <div className="flex-1">
             <label className="text-sm font-medium mb-2 block">Category</label>
             <Select
               value={categoryFilter}
-              onValueChange={setCategoryFilter}
+              onValueChange={(v) => setCategoryFilter(v)}
               aria-label="Filter by category"
             >
               <SelectTrigger>
@@ -196,12 +438,12 @@ const Shop = () => {
                 isVisible && "opacity-100"
               )}
             >
-              <p>No items available. Be the first to list something!</p>
+              <p>No items found. Try adjusting your filters or search.</p>
               <Button
                 asChild
                 className="mt-4 bg-thrift-green hover:bg-thrift-green/90"
               >
-                <a href="/sell">List an Item</a>
+                <a href="/Shop">Find Other Items</a>
               </Button>
             </div>
           ) : (
@@ -214,16 +456,34 @@ const Shop = () => {
               {filteredListings.map((listing, index) => (
                 <Card
                   key={listing.id}
-                  className="border-none shadow-sm hover:shadow-lg transition-shadow"
+                  className="group cursor-pointer border rounded-lg shadow-sm hover:shadow-lg transition duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-thrift-green"
                   style={{ animationDelay: `${index * 100}ms` }}
+                  tabIndex={0}
+                  role="link"
+                  onClick={() => navigate(`/product/${listing.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/product/${listing.id}`);
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
-                    <img
-                      src={listing.images[0] || "https://via.placeholder.com/150"}
-                      alt={listing.title}
-                      className="h-48 w-full object-cover rounded-lg mb-4"
-                    />
-                    <h3 className="text-lg font-semibold mb-2 truncate">
+                    <div className="relative">
+                      <img
+                        src={listing.images[0] || "https://via.placeholder.com/150"}
+                        alt={listing.title}
+                        className="h-48 w-full object-cover rounded-lg mb-4"
+                      />
+                      <button
+                        className={`absolute top-2 right-2 w-9 h-9 rounded-md grid place-items-center bg-white/90 hover:bg-white transition ${wishlistIds.has(String(listing.id)) ? 'text-red-500' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); toggleWishlist(String(listing.id)); }}
+                        aria-label={wishlistIds.has(String(listing.id)) ? 'Remove from wishlist' : 'Add to wishlist'}
+                      >
+                        <Heart className={`w-4 h-4 ${wishlistIds.has(String(listing.id)) ? 'fill-current' : ''}`} />
+                      </button>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2 truncate group-hover:text-thrift-green">
                       {listing.title}
                     </h3>
                     <p className="text-thrift-green font-bold mb-2">
@@ -235,14 +495,24 @@ const Shop = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Category: {listing.category}
                     </p>
-                    <Button
-                      className="w-full bg-thrift-green hover:bg-thrift-green/90"
-                      onClick={() => addToCart(listing)}
-                      aria-label={`Add ${listing.title} to cart`}
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to Cart
-                    </Button>
+                    {
+                      (() => {
+                        const st = String(listing.status || '').toLowerCase();
+                        const disabled = !!st && st !== 'unsold';
+                        const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+                        return (
+                          <Button
+                            className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
+                            onClick={(e) => { e.stopPropagation(); if (!disabled) addToCart(listing); }}
+                            aria-label={label}
+                            disabled={disabled}
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            {label}
+                          </Button>
+                        );
+                      })()
+                    }
                   </CardContent>
                 </Card>
               ))}
@@ -250,7 +520,7 @@ const Shop = () => {
           )}
         </div>
       </main>
-      <Footer />
+      
     </div>
   );
 };

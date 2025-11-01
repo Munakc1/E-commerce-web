@@ -46,7 +46,7 @@ export const Footer = () => {
           <div className="sm:col-span-2 lg:col-span-2">
             <div className="flex items-center space-x-2 mb-6">
               <img 
-                src="/lovable-uploads/2dc2d8e5-d78f-4af2-9b57-656947d223dd.png" 
+                src="/public/favicon.png" 
                 alt="ThriftSy Logo" 
                 className="h-16 w-auto"
               />

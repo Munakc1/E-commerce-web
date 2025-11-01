@@ -20,8 +20,6 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Upload, HeartHandshake, Coins, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
 
 interface FormData {
   name: string;
@@ -175,29 +173,29 @@ export const Donate = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold mb-2 text-foreground">
+          <h1 className="text-3xl font-bold mb-2 text-[hsl(var(--thrift-green))]">
             Give Back with Style
           </h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-foreground/90 max-w-2xl mx-auto">
             Donate your pre-loved items or make a monetary contribution to support sustainable fashion initiatives in Nepal.
           </p>
         </div>
 
         {/* Success/Error Message */}
-        {submissionStatus === "success" && (
-          <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
-            <p className="text-thrift-green font-medium">
+          {submissionStatus === "success" && (
+            <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
+              <p className="text-thrift-green font-medium">
               Thank you for your donation! We'll reach out soon.
             </p>
           </div>
         )}
         {submissionStatus === "error" && (
-          <div className="mb-6 p-4 bg-thrift-warm/10 border border-thrift-warm rounded-md text-center">
-            <p className="text-thrift-warm font-medium">
+          <div className="mb-6 p-4 bg-thrift-green/10 border border-thrift-green rounded-md text-center">
+            <p className="text-thrift-green font-medium">
               An error occurred. Please try again.
             </p>
           </div>
@@ -211,13 +209,13 @@ export const Donate = () => {
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8 bg-thrift-cream">
             <TabsTrigger
               value="items"
-              className="data-[state=active]:bg-thrift-green data-[state=active]:text-white"
+              className="text-foreground data-[state=active]:bg-thrift-green data-[state=active]:text-white"
             >
               Donate Items
             </TabsTrigger>
             <TabsTrigger
               value="money"
-              className="data-[state=active]:bg-thrift-green data-[state=active]:text-white"
+              className="text-foreground data-[state=active]:bg-thrift-green data-[state=active]:text-white"
             >
               Monetary Donation
             </TabsTrigger>
@@ -228,7 +226,7 @@ export const Donate = () => {
               {/* Donation Form */}
               <Card className="border-none shadow-sm bg-card">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-thrift-earth">
+                  <CardTitle className="flex items-center gap-2 text-[hsl(var(--thrift-green))]">
                     <Upload className="w-5 h-5" />
                     Item Donation Form
                   </CardTitle>
@@ -254,7 +252,7 @@ export const Donate = () => {
                           aria-describedby={errors.name ? "name-error" : undefined}
                         />
                         {errors.name && (
-                          <p id="name-error" className="text-sm text-thrift-warm">
+                    <p id="name-error" className="text-sm text-thrift-green">
                             {errors.name}
                           </p>
                         )}
@@ -275,7 +273,7 @@ export const Donate = () => {
                           aria-describedby={errors.email ? "email-error" : undefined}
                         />
                         {errors.email && (
-                          <p id="email-error" className="text-sm text-thrift-warm">
+                    <p id="email-error" className="text-sm text-thrift-green">
                             {errors.email}
                           </p>
                         )}
@@ -298,7 +296,7 @@ export const Donate = () => {
                           aria-describedby={errors.phone ? "phone-error" : undefined}
                         />
                         {errors.phone && (
-                          <p id="phone-error" className="text-sm text-thrift-warm">
+                    <p id="phone-error" className="text-sm text-thrift-green">
                             {errors.phone}
                           </p>
                         )}
@@ -328,7 +326,7 @@ export const Donate = () => {
                           </SelectContent>
                         </Select>
                         {errors.category && (
-                          <p id="category-error" className="text-sm text-thrift-warm">
+                    <p id="category-error" className="text-sm text-thrift-green">
                             {errors.category}
                           </p>
                         )}
@@ -350,7 +348,7 @@ export const Donate = () => {
                         aria-describedby={errors.itemName ? "itemName-error" : undefined}
                       />
                       {errors.itemName && (
-                        <p id="itemName-error" className="text-sm text-thrift-warm">
+                  <p id="itemName-error" className="text-sm text-thrift-green">
                           {errors.itemName}
                         </p>
                       )}
@@ -371,7 +369,7 @@ export const Donate = () => {
                         aria-describedby={errors.description ? "description-error" : undefined}
                       />
                       {errors.description && (
-                        <p id="description-error" className="text-sm text-thrift-warm">
+                  <p id="description-error" className="text-sm text-thrift-green">
                           {errors.description}
                         </p>
                       )}
@@ -392,7 +390,7 @@ export const Donate = () => {
                           aria-describedby={errors.size ? "size-error" : undefined}
                         />
                         {errors.size && (
-                          <p id="size-error" className="text-sm text-thrift-warm">
+                    <p id="size-error" className="text-sm text-thrift-green">
                             {errors.size}
                           </p>
                         )}
@@ -422,7 +420,7 @@ export const Donate = () => {
                           </SelectContent>
                         </Select>
                         {errors.condition && (
-                          <p id="condition-error" className="text-sm text-thrift-warm">
+                    <p id="condition-error" className="text-sm text-thrift-green">
                             {errors.condition}
                           </p>
                         )}
@@ -444,7 +442,7 @@ export const Donate = () => {
                         aria-describedby={errors.address ? "address-error" : undefined}
                       />
                       {errors.address && (
-                        <p id="address-error" className="text-sm text-thrift-warm">
+                  <p id="address-error" className="text-sm text-thrift-green">
                           {errors.address}
                         </p>
                       )}
@@ -466,14 +464,14 @@ export const Donate = () => {
                           htmlFor="imageUpload"
                           className="flex flex-col items-center justify-center w-full h-full text-center"
                         >
-                          <Upload className="w-8 h-8 mx-auto text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">
+                          <Upload className="w-8 h-8 mx-auto text-thrift-green" />
+                          <p className="text-sm text-foreground/80">
                             Click to upload photos of your item
                           </p>
                         </label>
                       </div>
                       {errors.images && (
-                        <p className="text-sm text-thrift-warm">{errors.images}</p>
+                  <p className="text-sm text-thrift-green">{errors.images}</p>
                       )}
                       {imagePreviews.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -503,7 +501,7 @@ export const Donate = () => {
               <div className="space-y-6">
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       Why Donate Items?
                     </CardTitle>
                   </CardHeader>
@@ -512,7 +510,7 @@ export const Donate = () => {
                       <CheckCircle className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Reduce Fashion Waste</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           Extend the life of clothing and reduce environmental impact
                         </p>
                       </div>
@@ -521,7 +519,7 @@ export const Donate = () => {
                       <CheckCircle className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Support Local Communities</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           Your donations help provide affordable clothing options
                         </p>
                       </div>
@@ -530,7 +528,7 @@ export const Donate = () => {
                       <CheckCircle className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Tax Benefits</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           Receive a tax receipt for your donated items
                         </p>
                       </div>
@@ -540,7 +538,7 @@ export const Donate = () => {
 
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       What We Accept
                     </CardTitle>
                   </CardHeader>
@@ -568,7 +566,7 @@ export const Donate = () => {
 
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       Pickup Information
                     </CardTitle>
                   </CardHeader>
@@ -589,11 +587,11 @@ export const Donate = () => {
               {/* Monetary Donation Form */}
               <Card className="border-none shadow-sm bg-card">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-thrift-earth">
+                  <CardTitle className="flex items-center gap-2 text-[hsl(var(--thrift-green))]">
                     <Coins className="w-5 h-5" />
                     Make a Monetary Donation
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-foreground/80">
                     Your financial support helps us sustain our operations and expand
                     our impact
                   </CardDescription>
@@ -713,7 +711,7 @@ export const Donate = () => {
               <div className="space-y-6">
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       How Your Money Helps
                     </CardTitle>
                   </CardHeader>
@@ -722,7 +720,7 @@ export const Donate = () => {
                       <HeartHandshake className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Clothing Distribution</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           NPR 1000 provides 5 outfits to people in need
                         </p>
                       </div>
@@ -731,7 +729,7 @@ export const Donate = () => {
                       <HeartHandshake className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Educational Programs</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           Support our sustainable fashion workshops
                         </p>
                       </div>
@@ -740,7 +738,7 @@ export const Donate = () => {
                       <HeartHandshake className="w-5 h-5 text-thrift-green mt-0.5" />
                       <div>
                         <h4 className="font-medium">Operational Costs</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-foreground/80">
                           Help us maintain our pickup and distribution network
                         </p>
                       </div>
@@ -750,7 +748,7 @@ export const Donate = () => {
 
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       Payment Methods
                     </CardTitle>
                   </CardHeader>
@@ -778,7 +776,7 @@ export const Donate = () => {
 
                 <Card className="border-none shadow-sm bg-card">
                   <CardHeader>
-                    <CardTitle className="text-thrift-earth">
+                    <CardTitle className="text-[hsl(var(--thrift-green))]">
                       Tax Benefits
                     </CardTitle>
                   </CardHeader>
@@ -800,14 +798,13 @@ export const Donate = () => {
           <Link to="/shop">
             <Button
               variant="outline"
-              className="border-thrift-green text-thrift-green hover:bg-thrift-green/10"
+              className="bg-white border-thrift-green text-thrift-green hover:bg-thrift-green/10"
             >
               Continue Shopping
             </Button>
           </Link>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };

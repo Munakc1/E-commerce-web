@@ -1,10 +1,12 @@
+import { Heart } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Heart, ShoppingBag, Eye } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ShoppingBag, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface ProductCardProps {
   id: string;
@@ -19,6 +21,7 @@ interface ProductCardProps {
   seller: string;
   location: string;
   className?: string;
+  status?: string;
 }
 
 export const ProductCard = ({
@@ -34,16 +37,20 @@ export const ProductCard = ({
   seller,
   location,
   className,
+  status,
 }: ProductCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [liked, setLiked] = useState(isLiked);
   const [cartItems, setCartItems] = useState<number>(0);
   const [isHovered, setIsHovered] = useState(false);
+  const auth = useAuth();
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   // Load cart and wishlist from localStorage on mount
   useEffect(() => {
-    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
-    setCartItems(storedCart.length);
+    // load unified cart (array of item objects)
+    const storedCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    setCartItems(Array.isArray(storedCart) ? storedCart.length : 0);
     const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
     setLiked(storedWishlist.includes(id));
   }, [id]);
@@ -66,25 +73,81 @@ export const ProductCard = ({
   };
 
   const handleAddToCart = () => {
-    const storedCart = JSON.parse(localStorage.getItem("cartItems") || "[]");
-    if (!storedCart.includes(id)) {
-      storedCart.push(id);
-      localStorage.setItem("cartItems", JSON.stringify(storedCart));
-      setCartItems(storedCart.length);
+    // Prevent adding items that are not available for sale
+    const st = String(status || "").toLowerCase();
+    if (st && st !== 'unsold') {
+      toast.error("Item cannot be added to cart", { description: `This listing is ${st.replace('_', ' ')}` });
+      return;
     }
+    const storedCart: Array<any> = JSON.parse(localStorage.getItem("cart") || "[]");
+    const idx = storedCart.findIndex((c) => String(c.id) === String(id));
+    if (idx >= 0) {
+      // already present: don't duplicate for thrift single-quantity
+      try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: storedCart.length } })); } catch {}
+      setCartItems(storedCart.length);
+      toast.info("Item already in cart", { description: title });
+      return;
+    }
+    storedCart.push({
+      id,
+      title,
+      price,
+      image: images && images[0] ? images[0] : "",
+      quantity: 1,
+    });
+    localStorage.setItem("cart", JSON.stringify(storedCart));
+    setCartItems(storedCart.length);
+    try { window.dispatchEvent(new CustomEvent("cartUpdated", { detail: { count: storedCart.length } })); } catch {}
+    toast.success("Added to cart", { description: title });
   };
 
   const handleToggleWishlist = () => {
-    const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
-    if (storedWishlist.includes(id)) {
-      const updatedWishlist = storedWishlist.filter((itemId: string) => itemId !== id);
-      localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
-      setLiked(false);
-    } else {
-      storedWishlist.push(id);
-      localStorage.setItem("wishlist", JSON.stringify(storedWishlist));
-      setLiked(true);
-    }
+    (async () => {
+      const storedWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+      const pid = String(id);
+      // Try server sync when authenticated
+      try {
+        if (auth && auth.token) {
+          if (storedWishlist.includes(pid)) {
+            const resp = await fetch(`${apiBase}/api/wishlist/${pid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } });
+            if (!resp.ok) throw new Error('Failed');
+            const updated = storedWishlist.filter((itemId: string) => itemId !== pid);
+            localStorage.setItem("wishlist", JSON.stringify(updated));
+            setLiked(false);
+            try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updated.length } })); } catch {}
+            toast('Removed from wishlist');
+            return;
+          } else {
+            const resp = await fetch(`${apiBase}/api/wishlist`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({ productId: pid }) });
+            if (!resp.ok) throw new Error('Failed');
+            const updated = Array.isArray(storedWishlist) ? [...storedWishlist, pid] : [pid];
+            localStorage.setItem("wishlist", JSON.stringify(updated));
+            setLiked(true);
+            try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updated.length } })); } catch {}
+            toast.success('Added to wishlist');
+            return;
+          }
+        }
+      } catch (e) {
+        // server sync failed; fall back to local toggle with toast
+        console.warn('wishlist sync failed, falling back to local', e && e.message ? e.message : e);
+      }
+
+      // Local toggle fallback
+      if (storedWishlist.includes(pid)) {
+        const updatedWishlist = storedWishlist.filter((itemId: string) => itemId !== pid);
+        localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+        setLiked(false);
+        try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: updatedWishlist.length } })); } catch {}
+        toast('Removed from wishlist');
+      } else {
+        const next = Array.isArray(storedWishlist) ? [...storedWishlist, pid] : [pid];
+        localStorage.setItem("wishlist", JSON.stringify(next));
+        setLiked(true);
+        try { window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { count: next.length } })); } catch {}
+        toast.success('Added to wishlist');
+      }
+    })();
   };
 
   return (
@@ -129,8 +192,8 @@ export const ProductCard = ({
           <Badge className={getConditionColor(condition)} variant="secondary">
             {condition}
           </Badge>
-          {discountPercentage > 0 && (
-            <Badge className="bg-thrift-warm text-white">
+            {discountPercentage > 0 && (
+            <Badge className="bg-thrift-green text-white">
               -{discountPercentage}%
             </Badge>
           )}
@@ -199,16 +262,25 @@ export const ProductCard = ({
         </div>
 
         {/* Add to Cart Button */}
-        <Link to="/cart">
-          <Button
-            className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white"
-            size="sm"
-            onClick={handleAddToCart}
-          >
-            <ShoppingBag className="w-4 h-4 mr-2" />
-            Add to Cart
-          </Button>
-        </Link>
+        {
+          (() => {
+            const st = String(status || "").toLowerCase();
+            const disabled = !!st && st !== 'unsold';
+            const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+            return (
+              <Button
+                className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
+                size="sm"
+                onClick={handleAddToCart}
+                disabled={disabled}
+                aria-disabled={disabled}
+              >
+                <ShoppingBag className="w-4 h-4 mr-2" />
+                {label}
+              </Button>
+            );
+          })()
+        }
       </CardContent>
     </Card>
   );
