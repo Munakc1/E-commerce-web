@@ -199,7 +199,7 @@ const Sell = () => {
             </div>
             {token && (
               <div className="pt-1">
-                <Button asChild variant="outline" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+                <Button asChild variant="outline" className="hover:bg-[hsl(var(--thrift-green))]/10">
                   <Link to="/my-listings">My Listings</Link>
                 </Button>
               </div>

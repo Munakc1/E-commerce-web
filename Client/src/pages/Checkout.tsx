@@ -260,12 +260,12 @@ export default function Checkout() {
                 {/* Reserve space so the card doesn't jump when payment sections expand/collapse */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="name" className="text-thrift-green">Full Name</Label>
+                    <Label htmlFor="name" className="text-black">Full Name</Label>
                     <Input id="name" {...register("name", { required: "Name is required" })} className={errors.name ? "border-thrift-warm" : ""} />
                     {errors.name && <p className="text-sm text-thrift-warm mt-1">{errors.name.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="email" className="text-thrift-green">Email</Label>
+                    <Label htmlFor="email" className="text-black">Email</Label>
                     <Input
                       id="email"
                       type="email"
@@ -280,7 +280,7 @@ export default function Checkout() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="phone" className="text-thrift-green">Phone</Label>
+                    <Label htmlFor="phone" className="text-black">Phone</Label>
                     <Input
                       id="phone"
                       {...register("phone", {
@@ -292,18 +292,18 @@ export default function Checkout() {
                     {errors.phone && <p className="text-sm text-thrift-warm mt-1">{errors.phone.message}</p>}
                   </div>
                   <div>
-                    <Label htmlFor="city" className="text-thrift-green">City</Label>
+                    <Label htmlFor="city" className="text-black">City</Label>
                     <Input id="city" {...register("city", { required: "City is required" })} className={errors.city ? "border-thrift-warm" : ""} />
                     {errors.city && <p className="text-sm text-thrift-warm mt-1">{errors.city.message}</p>}
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="address" className="text-thrift-green">Address</Label>
+                  <Label htmlFor="address" className="text-black">Address</Label>
                   <Input id="address" {...register("address", { required: "Address is required" })} className={errors.address ? "border-thrift-warm" : ""} />
                   {errors.address && <p className="text-sm text-thrift-warm mt-1">{errors.address.message}</p>}
                 </div>
                 <div>
-                  <Label className="text-thrift-green">Payment Method</Label>
+                  <Label className="text-black">Payment Method</Label>
                   <RadioGroup defaultValue="cod" onValueChange={(v) => setValue("payment", v as any)} className="flex gap-6 mt-2 flex-wrap">
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="cod" id="cod" />
@@ -329,12 +329,12 @@ export default function Checkout() {
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="bankName" className="text-thrift-green">Bank Name</Label>
+                        <Label htmlFor="bankName" className="text-black">Bank Name</Label>
                         <Input id="bankName" {...register("bankName", { required: "Bank name is required" })} className={errors.bankName ? "border-thrift-warm" : ""} />
                         {errors.bankName && <p className="text-sm text-thrift-warm mt-1">{errors.bankName.message}</p>}
                       </div>
                       <div>
-                        <Label htmlFor="bankAccount" className="text-thrift-green">Account Number</Label>
+                        <Label htmlFor="bankAccount" className="text-black">Account Number</Label>
                         <Input
                           id="bankAccount"
                           {...register("bankAccount", {
@@ -347,7 +347,7 @@ export default function Checkout() {
                       </div>
                     </div>
                     <div>
-                      <Label className="text-thrift-green">Scan QR Code for Bank Payment</Label>
+                      <Label className="text-black">Scan QR Code for Bank Payment</Label>
                       <div className="mt-2">
                         <img src="/images/bank.jpg" alt="Bank QR Code" className="w-32 h-32 mx-auto border border-thrift-warm/20" />
                         <p className="text-sm text-muted-foreground mt-2 text-center">Scan this QR code to make a payment to our bank account.</p>

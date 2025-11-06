@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ export const Navbar = () => {
   const [cartCount, setCartCount] = useState<number>(0);
   const { isAuthenticated, user, token, logout } = useAuth(); // include token
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || 'http://localhost:5000', []);
 
   // notifications state
@@ -149,7 +150,7 @@ export const Navbar = () => {
     logout();
     navigate("/signin");
   };
-
+  
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
       <div className="container mx-auto px-4">
@@ -179,11 +180,12 @@ export const Navbar = () => {
             {navLinks.map((link) => {
               const resolved = resolveHref(link.href);
               const to = resolved === '/shop' ? '/shop?reset=1' : resolved;
+              const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
               return (
                 <Link
                   key={link.href}
                   to={to}
-                  className="text-foreground hover:text-thrift-green transition-colors font-medium"
+                  className={`${isActive ? 'text-thrift-green' : 'text-foreground'} hover:text-thrift-green transition-colors font-medium`}
                 >
                   {link.label}
                 </Link>
@@ -194,7 +196,7 @@ export const Navbar = () => {
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-3">
             {isAuthenticated && String(user?.role || '').toLowerCase() === 'admin' && (
-              <Button asChild variant="ghost" size="sm" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+              <Button asChild variant="ghost" size="sm" className={`${pathname.startsWith('/admin') ? 'text-thrift-green' : ''} hover:bg-transparent hover:text-thrift-green`}>
                 <Link to="/admin">Admin</Link>
               </Button>
             )}
@@ -344,11 +346,12 @@ export const Navbar = () => {
               {navLinks.map((link) => {
                 const resolved = resolveHref(link.href);
                 const to = resolved === '/shop' ? '/shop?reset=1' : resolved;
+                const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
                 return (
                   <Link
                     key={link.href}
                     to={to}
-                    className="block px-4 py-2 text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] transition-colors rounded-md"
+                    className={`block px-4 py-2 rounded-md transition-colors ${isActive ? 'text-thrift-green bg-[hsl(var(--thrift-green))]/10' : 'text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]'}`}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     {link.label}
@@ -358,7 +361,7 @@ export const Navbar = () => {
               {isAuthenticated && String(user?.role || '').toLowerCase() === 'admin' && (
                 <Link
                   to="/admin"
-                  className="block px-4 py-2 text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] transition-colors rounded-md"
+                  className={`block px-4 py-2 rounded-md transition-colors ${pathname.startsWith('/admin') ? 'text-thrift-green bg-[hsl(var(--thrift-green))]/10' : 'text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]'}`}
                   onClick={() => setIsMenuOpen(false)}
                 >
                   Admin
@@ -394,7 +397,6 @@ export const Navbar = () => {
                     Profile
                   </Link>
                 </Button>
-                {/** My Listings link moved under Sell page; removed from mobile menu. */}
               </div>
 
               {isAuthenticated ? (
