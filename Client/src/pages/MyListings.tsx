@@ -195,8 +195,7 @@ export default function MyListings() {
                     >
                       <td className="px-3 py-3 w-24">
                         {p.image ? (
-                          // eslint-disable-next-line jsx-a11y/img-redundant-alt
-                          <img src={p.image} alt={p.title || 'image'} className="w-20 h-14 object-cover rounded" />
+                          <img src={p.image} alt={p.title ? `${p.title}` : 'Listing image'} className="w-20 h-14 object-cover rounded" />
                         ) : (
                           <div className="w-20 h-14 bg-muted grid place-items-center text-xs text-muted-foreground rounded">No image</div>
                         )}

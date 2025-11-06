@@ -53,7 +53,11 @@ export default function Profile() {
         return;
       }
       const updated = data.user || { ...user, name: form.name, phone: form.phone };
-      token ? login(token, updated as any) : localStorage.setItem("user", JSON.stringify(updated));
+      if (token) {
+        login(token, updated as any);
+      } else {
+        localStorage.setItem("user", JSON.stringify(updated));
+      }
       setEditing(false);
       setMessage("Profile updated.");
       setTimeout(() => setMessage(null), 3000);
