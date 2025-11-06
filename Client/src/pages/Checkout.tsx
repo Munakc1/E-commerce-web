@@ -10,6 +10,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { initiateEsewaPayment } from "@/lib/esewa";
+import { initiateKhaltiPayment } from "@/lib/khalti";
 
 type CartItem = {
   id: string;
@@ -25,7 +27,7 @@ interface FormData {
   phone: string;
   address: string;
   city: string;
-  payment: "cod" | "esewa" | "bank";
+  payment: "cod" | "esewa" | "khalti" | "bank";
   bankAccount?: string;
   bankName?: string;
 }
@@ -69,11 +71,7 @@ export default function Checkout() {
   const taxes = subtotal * TAX_RATE;
   const shipping = cartItems.length > 0 ? 200 : 0;
   const total = subtotal + taxes + shipping;
-
-  const simulateEsewaPayment = async (_data: FormData) =>
-    new Promise((resolve, reject) =>
-      setTimeout(() => (Math.random() > 0.1 ? resolve({ success: true }) : reject(new Error("eSewa failed"))), 1500)
-    );
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const simulateBankPayment = async (data: FormData) =>
     new Promise((resolve, reject) =>
@@ -91,8 +89,89 @@ export default function Checkout() {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      if (data.payment === "esewa") await simulateEsewaPayment(data);
-      else if (data.payment === "bank") await simulateBankPayment(data);
+      const genIdempotencyKey = () => `idemp-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+      const idempotency_key = genIdempotencyKey();
+      if (data.payment === "esewa") {
+        toast("Redirecting to eSewa…");
+        // Create a pending order first so we can map it to the eSewa transaction
+        const orderPayload = {
+          userId: user?.id ?? null,
+          items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, image: i.image })),
+          subtotal: Math.round(subtotal),
+          tax: Math.round(taxes),
+          shipping: Math.round(shipping),
+          total: Math.round(total),
+          paymentMethod: "esewa",
+          paymentStatus: "pending",
+          idempotency_key,
+          shippingAddress: { name: data.name, phone: data.phone, address: data.address, city: data.city },
+        };
+        const createRes = await fetch(`${apiBase}/api/orders`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(orderPayload),
+        });
+        if (!createRes.ok) {
+          const text = await createRes.text();
+          throw new Error(`Order creation failed: ${createRes.status} - ${text}`);
+        }
+        const created = await createRes.json();
+        const newOrderId = created.insertId || created.id || created.orderId;
+
+        await initiateEsewaPayment(
+          apiBase,
+          {
+            amount: Math.round(total),
+            productName: cartItems[0]?.title ? `Order - ${cartItems[0].title}` : "Order Payment",
+            transactionId: `txn-${Date.now()}`,
+            orderId: newOrderId,
+          },
+          token || undefined
+        );
+        return; // The browser will redirect to eSewa on success
+      } else if (data.payment === "khalti") {
+        toast("Redirecting to Khalti…");
+        const orderPayload = {
+          userId: user?.id ?? null,
+          items: cartItems.map((i) => ({ productId: i.id, title: i.title, price: i.price, image: i.image })),
+          subtotal: Math.round(subtotal),
+          tax: Math.round(taxes),
+          shipping: Math.round(shipping),
+          total: Math.round(total),
+          paymentMethod: "khalti",
+          paymentStatus: "pending",
+          idempotency_key,
+          shippingAddress: { name: data.name, phone: data.phone, address: data.address, city: data.city },
+        };
+        const createRes = await fetch(`${apiBase}/api/orders`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(orderPayload),
+        });
+        if (!createRes.ok) {
+          const text = await createRes.text();
+          throw new Error(`Order creation failed: ${createRes.status} - ${text}`);
+        }
+        const created = await createRes.json();
+        const newOrderId = created.insertId || created.id || created.orderId;
+
+        await initiateKhaltiPayment(
+          apiBase,
+          {
+            amount: Math.round(total),
+            productName: cartItems[0]?.title ? `Order - ${cartItems[0].title}` : "Order Payment",
+            orderId: newOrderId,
+          },
+          token || undefined
+        );
+        return;
+      } else if (data.payment === "bank") await simulateBankPayment(data);
       else await simulateCOD();
 
       const payload = {
@@ -104,10 +183,11 @@ export default function Checkout() {
         total: Math.round(total),
         paymentMethod: data.payment,
         paymentStatus: data.payment === "cod" ? "pending" : "paid",
+        idempotency_key,
         shippingAddress: { name: data.name, phone: data.phone, address: data.address, city: data.city },
       };
 
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/orders`, {
+      const resp = await fetch(`${apiBase}/api/orders`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -224,7 +304,7 @@ export default function Checkout() {
                 </div>
                 <div>
                   <Label className="text-thrift-green">Payment Method</Label>
-                  <RadioGroup defaultValue="cod" onValueChange={(v) => setValue("payment", v as any)} className="flex gap-6 mt-2">
+                  <RadioGroup defaultValue="cod" onValueChange={(v) => setValue("payment", v as any)} className="flex gap-6 mt-2 flex-wrap">
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="cod" id="cod" />
                       <Label htmlFor="cod" className="text-foreground">Cash on Delivery</Label>
@@ -232,6 +312,10 @@ export default function Checkout() {
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="esewa" id="esewa" />
                       <Label htmlFor="esewa" className="text-foreground">eSewa</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="khalti" id="khalti" />
+                      <Label htmlFor="khalti" className="text-foreground">Khalti</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="bank" id="bank" />
@@ -272,23 +356,29 @@ export default function Checkout() {
                   </div>
                 )}
                 {paymentMethod === "esewa" && (
-                  <div>
-                    <Label className="text-thrift-green">Redirecting to eSewa</Label>
-                    <div className="mt-2">
-                      <img src="/images/esewa.jpg" alt="eSewa QR Code" className="w-32 h-32 mx-auto border border-thrift-warm/20" />
-                      <p className="text-sm text-muted-foreground mt-2 text-center">
-                        You are being redirected to eSewa for device activation. Please complete the activation to proceed with payment.
-                      </p>
-                    </div>
+                  <div className="text-center text-sm text-muted-foreground">
+                    You will be redirected to eSewa after you place the order.
+                  </div>
+                )}
+                {paymentMethod === "khalti" && (
+                  <div className="text-center text-sm text-muted-foreground">
+                    You will be redirected to Khalti to complete your payment securely.
                   </div>
                 )}
                 </div>
                 <Button
                   type="submit"
                   className="w-full bg-thrift-green hover:bg-thrift-green/90 text-white text-lg py-6"
-                  disabled={!isValid || isSubmitting || paymentMethod === "esewa"}
+                  disabled={!isValid || isSubmitting}
                 >
-                  {isSubmitting ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Placing Order...</>) : ("Place Order")}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      {paymentMethod === 'esewa' || paymentMethod === 'khalti' ? 'Redirecting…' : 'Placing Order...'}
+                    </>
+                  ) : (
+                    paymentMethod === 'esewa' ? 'Pay with eSewa' : paymentMethod === 'khalti' ? 'Pay with Khalti' : 'Place Order'
+                  )}
                 </Button>
               </CardContent>
             </Card>

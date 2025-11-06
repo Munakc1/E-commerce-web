@@ -243,6 +243,12 @@ async function initDb() {
   await ensureColumn('products', 'category_id INT UNSIGNED NULL', 'category');
   // Minimal seller status support for listings: unsold | order_received | sold
   await ensureColumn('products', "status VARCHAR(30) NOT NULL DEFAULT 'unsold'", 'image');
+  // Map orders to eSewa transaction UUID when initiating payment
+  await ensureColumn('orders', 'esewa_transaction_uuid VARCHAR(100) NULL', 'payment_status');
+  // Map orders to Khalti payment pidx for verification
+  await ensureColumn('orders', 'khalti_pidx VARCHAR(100) NULL', 'esewa_transaction_uuid');
+  // Idempotency key to prevent duplicate orders on retries
+  await ensureColumn('orders', 'idempotency_key VARCHAR(128) NULL', 'khalti_pidx');
 
   // Ensure foreign key exists for products.user_id -> users.id
   try {

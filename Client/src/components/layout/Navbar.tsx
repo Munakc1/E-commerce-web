@@ -176,15 +176,19 @@ export const Navbar = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={resolveHref(link.href)}
-                className="text-foreground hover:text-thrift-green transition-colors font-medium"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const resolved = resolveHref(link.href);
+              const to = resolved === '/shop' ? '/shop?reset=1' : resolved;
+              return (
+                <Link
+                  key={link.href}
+                  to={to}
+                  className="text-foreground hover:text-thrift-green transition-colors font-medium"
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* Desktop Actions */}
@@ -337,16 +341,20 @@ export const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden border-t bg-background/95 backdrop-blur">
             <div className="py-4 space-y-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={resolveHref(link.href)}
-                  className="block px-4 py-2 text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] transition-colors rounded-md"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const resolved = resolveHref(link.href);
+                const to = resolved === '/shop' ? '/shop?reset=1' : resolved;
+                return (
+                  <Link
+                    key={link.href}
+                    to={to}
+                    className="block px-4 py-2 text-foreground hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))] transition-colors rounded-md"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
               {isAuthenticated && String(user?.role || '').toLowerCase() === 'admin' && (
                 <Link
                   to="/admin"

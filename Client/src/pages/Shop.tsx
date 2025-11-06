@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -67,6 +67,7 @@ const Shop = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const { isAuthenticated, token } = useAuth();
   const initialQ = (searchParams.get('q') || '').trim();
   const initialCat = (searchParams.get('category') || 'all').toLowerCase();
@@ -163,13 +164,36 @@ const Shop = () => {
   }, [apiBase, isAuthenticated, token]);
 
   // Keep category and search in sync with URL (on navigation/back/links)
+  // If ?reset is present, skip syncing from URL to avoid flip-flop with reset logic
   useEffect(() => {
+    if (searchParams.has('reset')) return;
     const qParam = (searchParams.get('q') || '').trim();
     const catParam = normalizeCategoryParam(searchParams.get('category'));
     if (qParam !== searchQuery) setSearchQuery(qParam);
     if (catParam !== categoryFilter) setCategoryFilter(catParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // If user navigates to /shop without filters OR with ?reset=1, reset all local filters to defaults
+  useEffect(() => {
+    const isShop = location.pathname.toLowerCase() === '/shop';
+    const hasAny = searchParams.has('category') || searchParams.has('q');
+    const hasReset = searchParams.has('reset');
+    if (isShop && (!hasAny || hasReset)) {
+      if (categoryFilter !== 'all') setCategoryFilter('all');
+      if (searchQuery !== '') setSearchQuery('');
+      if (priceFilter !== 'all') setPriceFilter('all');
+      if (sortOrder !== 'default') setSortOrder('default');
+      if (hasReset) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('reset');
+        next.delete('category');
+        next.delete('q');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search, searchParams]);
 
   // Apply filters and sorting
   useEffect(() => {
@@ -439,11 +463,8 @@ const Shop = () => {
               )}
             >
               <p>No items found. Try adjusting your filters or search.</p>
-              <Button
-                asChild
-                className="mt-4 bg-thrift-green hover:bg-thrift-green/90"
-              >
-                <a href="/Shop">Find Other Items</a>
+              <Button asChild className="mt-4 bg-thrift-green hover:bg-thrift-green/90">
+                <Link to="/shop">Find Other Items</Link>
               </Button>
             </div>
           ) : (
