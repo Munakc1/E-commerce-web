@@ -17,7 +17,14 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      // Base
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm [&>span]:line-clamp-1",
+      // Placeholder + transitions
+      "placeholder:text-muted-foreground transition-colors duration-200",
+      // Disabled
+      "disabled:cursor-not-allowed disabled:opacity-50",
+      // Theme-aligned hover/focus using thrift green
+      "ring-offset-background focus:outline-none focus:ring-2 focus:ring-thrift-green focus:ring-offset-2 focus:border-thrift-green hover:border-thrift-green/50",
       className
     )}
     {...props}
@@ -116,7 +123,9 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      // Theme-aligned hover/focus/selected states (use thrift green)
+      "hover:bg-thrift-green/10 hover:text-thrift-green focus:bg-thrift-green/10 focus:text-thrift-green data-[state=checked]:bg-thrift-green/20 data-[state=checked]:text-thrift-green",
       className
     )}
     {...props}

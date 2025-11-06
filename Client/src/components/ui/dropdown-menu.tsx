@@ -25,7 +25,9 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent",
+      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
+      // Theme-aligned hover/focus/open states (thrift green)
+      "hover:bg-thrift-green/10 hover:text-thrift-green focus:bg-thrift-green/10 focus:text-thrift-green data-[state=open]:bg-thrift-green/10 data-[state=open]:text-thrift-green",
       inset && "pl-8",
       className
     )}
@@ -81,7 +83,9 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      // Theme-aligned hover/focus/selected states
+      "hover:bg-thrift-green/10 hover:text-thrift-green focus:bg-thrift-green/10 focus:text-thrift-green data-[state=checked]:bg-thrift-green/20 data-[state=checked]:text-thrift-green",
       inset && "pl-8",
       className
     )}
@@ -97,7 +101,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "hover:bg-thrift-green/10 hover:text-thrift-green focus:bg-thrift-green/10 focus:text-thrift-green data-[state=checked]:bg-thrift-green/20 data-[state=checked]:text-thrift-green",
       className
     )}
     checked={checked}
@@ -121,7 +126,8 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "hover:bg-thrift-green/10 hover:text-thrift-green focus:bg-thrift-green/10 focus:text-thrift-green data-[state=checked]:bg-thrift-green/20 data-[state=checked]:text-thrift-green",
       className
     )}
     {...props}
