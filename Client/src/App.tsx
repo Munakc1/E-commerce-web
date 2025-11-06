@@ -21,6 +21,8 @@ import OrderDetail from "./pages/OrderDetail";
 import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
 import MyListings from "./pages/MyListings";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailure from "./pages/PaymentFailure";
 import { Toaster as AppToaster } from "@/components/ui/sonner";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminPage from "./pages/admin/Admin";
@@ -74,6 +76,8 @@ const App = () => (
             <Route path="/sell" element={<Sell />} />
             <Route path="/donate" element={<Donate />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/success" element={<PaymentSuccess />} />
+            <Route path="/failure" element={<PaymentFailure />} />
             <Route
               path="/order/:id"
               element={

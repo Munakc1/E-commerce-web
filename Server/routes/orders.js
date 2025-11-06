@@ -29,6 +29,7 @@ function requireUser(req, res) {
 router.post("/", async (req, res) => {
   const conn = await pool.getConnection();
   try {
+  // incoming order body
     // If JWT is provided, derive userId from token (source of truth)
     let authUserId = null;
     try {
@@ -50,14 +51,30 @@ router.post("/", async (req, res) => {
       paymentMethod = null,
       paymentStatus = "pending",
       shippingAddress = {},
+      idempotency_key = null,
     } = req.body;
+
+    // If idempotency_key provided, try to return an existing order to avoid duplicates
+    if (idempotency_key) {
+      try {
+        const [existing] = await conn.query(`SELECT id FROM orders WHERE idempotency_key = ? LIMIT 1`, [String(idempotency_key)]);
+        if (Array.isArray(existing) && existing[0]) {
+          // release connection and return existing order id
+          conn.release();
+          return res.status(200).json({ id: existing[0].id, existing: true });
+        }
+      } catch (e) {
+        // continue to create order if the lookup fails for any reason
+        console.warn('idempotency lookup failed:', e && e.message ? e.message : e);
+      }
+    }
 
     await conn.beginTransaction();
 
     const [orderResult] = await conn.query(
-      `INSERT INTO orders (user_id, subtotal, tax, shipping, total, payment_method, payment_status, shipping_address)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [authUserId != null ? authUserId : (userId || null), subtotal, tax, shipping, total, paymentMethod, paymentStatus, JSON.stringify(shippingAddress)]
+      `INSERT INTO orders (user_id, subtotal, tax, shipping, total, payment_method, payment_status, shipping_address, idempotency_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [authUserId != null ? authUserId : (userId || null), subtotal, tax, shipping, total, paymentMethod, paymentStatus, JSON.stringify(shippingAddress), idempotency_key]
     );
 
     const orderId = orderResult.insertId;

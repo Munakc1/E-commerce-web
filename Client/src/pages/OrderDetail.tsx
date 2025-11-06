@@ -50,6 +50,23 @@ export default function OrderDetail() {
     load();
   }, [id, apiBase, token]);
 
+  // If arriving from a successful payment, clear cart once when order is paid
+  useEffect(() => {
+    if (!order) return;
+    const paid = String(order.payment_status || order.paymentStatus || '').toLowerCase() === 'paid';
+    if (!paid) return;
+    const oid = Number(order.id || order.order_id);
+    if (!oid) return;
+    const sessKey = `cartClearedForOrder_${oid}`;
+    try {
+      if (!sessionStorage.getItem(sessKey)) {
+        localStorage.setItem('cart', JSON.stringify([]));
+        try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: 0 } })); } catch {}
+        sessionStorage.setItem(sessKey, '1');
+      }
+    } catch {}
+  }, [order]);
+
   const handleCancel = async () => {
     if (!order) return;
     const ok = window.confirm('Cancel this order? This will attempt to release the items back to unsold state.');
