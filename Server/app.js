@@ -16,6 +16,7 @@ const categoriesRoutes = require("./routes/categories");
 const wishlistRoutes = require("./routes/wishlist");
 const adminRoutes = require("./routes/admin");
 const paymentsRoutes = require("./routes/payments");
+const reviewsRoutes = require("./routes/reviews");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,6 +49,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api", messageRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentsRoutes);
+app.use("/api/reviews", reviewsRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

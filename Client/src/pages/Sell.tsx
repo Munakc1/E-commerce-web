@@ -14,6 +14,7 @@ import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Sell = () => {
   const [images, setImages] = useState<string[]>([]);
@@ -166,14 +167,14 @@ const Sell = () => {
         return;
       }
       const json = text ? JSON.parse(text) : {};
-      alert('Product created id: ' + (json.id || 'unknown'));
+      toast.success('Item listed successfully', { description: `ID: ${json.id || 'unknown'}` });
       // clear form
       setTitle(''); setPrice(''); setFiles([]); setImages([]);
       // navigate or update UI as needed
-      window.location.href = '/shop';
+      navigate('/shop');
     } catch (err) {
       console.error('submit error', err);
-      alert('Upload failed, saved locally.');
+      toast.error('Listing failed, saved locally for now');
       const existing = JSON.parse(localStorage.getItem('listings') || '[]');
       localStorage.setItem('listings', JSON.stringify([{ id: Date.now().toString(), title, price, images }, ...existing]));
     } finally {

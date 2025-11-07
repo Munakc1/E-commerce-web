@@ -230,7 +230,9 @@ export const ProductCard = ({
       <CardContent className="p-4">
         {/* Brand & Seller */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-thrift-earth">{brand}</span>
+          <span className="text-sm font-semibold italic text-foreground/90 tracking-wide">
+            {brand || '\u00A0'}
+          </span>
           <span className="text-xs text-muted-foreground">{location}</span>
         </div>
 
@@ -247,16 +249,23 @@ export const ProductCard = ({
           <span className="text-xs text-muted-foreground">by {seller}</span>
         </div>
 
-        {/* Price */}
+        {/* Price & Discount */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-thrift-green">
               NPR {price.toLocaleString()}
             </span>
             {originalPrice && (
-              <span className="text-sm text-muted-foreground line-through">
-                NPR {originalPrice.toLocaleString()}
-              </span>
+              <>
+                <span className="text-sm text-muted-foreground line-through">
+                  NPR {originalPrice.toLocaleString()}
+                </span>
+                {originalPrice > price && discountPercentage > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-thrift-green text-white text-[10px] font-semibold px-2 py-0.5">
+                    -{discountPercentage}%
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>

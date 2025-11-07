@@ -62,6 +62,11 @@ const Shop = () => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [priceFilter, setPriceFilter] = useState("all");
+  const [onSaleOnly, setOnSaleOnly] = useState(false);
+  const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [brandFilter, setBrandFilter] = useState<string>("");
+  const [conditionFilter, setConditionFilter] = useState<string>("all");
+  const [sizeFilter, setSizeFilter] = useState<string>("");
   const [sortOrder, setSortOrder] = useState("default");
   const [isVisible, setIsVisible] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -82,6 +87,17 @@ const Shop = () => {
       return new Set<string>();
     }
   });
+
+  // Helper: determine if listing is on sale
+  const isOnSale = (l: Listing) => l.originalPrice != null && Number(l.originalPrice) > Number(l.price);
+  // Helper: determine if listing is featured (server flag if present, else heuristic)
+  const isFeatured = (l: Listing, index: number) => {
+    const anyServerFlag = (l as any).featured === true || String((l as any).featured).toLowerCase() === 'true';
+    if (anyServerFlag) return true;
+    const discount = l.originalPrice ? (1 - (l.price / Number(l.originalPrice))) : 0;
+    // Heuristic: high discount OR among first few newest
+    return discount >= 0.2 || index < 6;
+  };
 
   // Fetch listings from backend products; fallback to localStorage
   useEffect(() => {
@@ -213,6 +229,33 @@ const Shop = () => {
       updatedListings = updatedListings.filter((listing) => canonicalizeCategory(listing.category) === categoryFilter);
     }
 
+    // Filter by "On Sale"
+    if (onSaleOnly) {
+      updatedListings = updatedListings.filter(isOnSale);
+    }
+
+    // Filter by "Featured"
+    if (featuredOnly) {
+      updatedListings = updatedListings.filter((l, idx) => isFeatured(l, idx));
+    }
+
+    // Filter by brand
+    if (brandFilter.trim()) {
+      const bf = brandFilter.trim().toLowerCase();
+      updatedListings = updatedListings.filter(l => (l.brand || '').toLowerCase().includes(bf));
+    }
+
+    // Filter by condition
+    if (conditionFilter !== 'all') {
+      updatedListings = updatedListings.filter(l => String(l.condition || '').toLowerCase() === conditionFilter);
+    }
+
+    // Filter by size (contains)
+    if (sizeFilter.trim()) {
+      const sf = sizeFilter.trim().toLowerCase();
+      updatedListings = updatedListings.filter(l => (l.size || '').toLowerCase().includes(sf));
+    }
+
     // Filter by price range
     if (priceFilter !== "all") {
       updatedListings = updatedListings.filter((listing) => {
@@ -231,7 +274,7 @@ const Shop = () => {
     }
 
     setFilteredListings(updatedListings);
-  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery]);
+  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery, onSaleOnly, featuredOnly, brandFilter, conditionFilter, sizeFilter]);
 
   // Reflect category/search in URL for shareability (only when changed)
   useEffect(() => {
@@ -451,6 +494,53 @@ const Shop = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Brand</label>
+            <Input value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} placeholder="e.g. Zara" aria-label="Filter by brand" />
+          </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Condition</label>
+            <Select value={conditionFilter} onValueChange={setConditionFilter} aria-label="Filter by condition">
+              <SelectTrigger>
+                <SelectValue placeholder="All Conditions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Conditions</SelectItem>
+                <SelectItem value="excellent">Excellent</SelectItem>
+                <SelectItem value="good">Good</SelectItem>
+                <SelectItem value="fair">Fair</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Size</label>
+            <Input value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value)} placeholder="e.g. M" aria-label="Filter by size" />
+          </div>
+          <div className="sm:w-56 w-full grid grid-cols-2 gap-4 items-end">
+            <label className="text-sm font-medium mb-2 block col-span-2">Quick Filters</label>
+            <button
+              type="button"
+              onClick={() => setOnSaleOnly(v => !v)}
+              className={cn(
+                "h-10 rounded-md border px-3 text-sm text-left",
+                onSaleOnly ? "border-thrift-green bg-thrift-green/10" : "hover:bg-muted/50"
+              )}
+              aria-pressed={onSaleOnly}
+            >
+              {onSaleOnly ? "✓ On Sale" : "On Sale"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeaturedOnly(v => !v)}
+              className={cn(
+                "h-10 rounded-md border px-3 text-sm text-left",
+                featuredOnly ? "border-thrift-green bg-thrift-green/10" : "hover:bg-muted/50"
+              )}
+              aria-pressed={featuredOnly}
+            >
+              {featuredOnly ? "✓ Featured" : "Featured"}
+            </button>
+          </div>
         </div>
 
         {/* Listings Grid */}
@@ -496,6 +586,16 @@ const Shop = () => {
                         alt={listing.title}
                         className="h-48 w-full object-cover rounded-lg mb-4"
                       />
+                      {(featuredOnly || isFeatured(listing, index)) && (
+                        <span className="absolute top-2 left-2 inline-flex items-center rounded-full bg-thrift-green text-white text-[10px] font-semibold px-2 py-0.5 shadow">
+                          Featured
+                        </span>
+                      )}
+                      {isOnSale(listing) && (
+                        <span className="absolute top-2 left-24 inline-flex items-center rounded-full bg-rose-500 text-white text-[10px] font-semibold px-2 py-0.5 shadow">
+                          On Sale
+                        </span>
+                      )}
                       <button
                         className={`absolute top-2 right-2 w-9 h-9 rounded-md grid place-items-center bg-white/90 hover:bg-white transition ${wishlistIds.has(String(listing.id)) ? 'text-red-500' : ''}`}
                         onClick={(e) => { e.stopPropagation(); toggleWishlist(String(listing.id)); }}

@@ -307,7 +307,11 @@ router.put('/:id', async (req, res) => {
         return res.status(403).json({ message: 'Not authorized to cancel this order' });
       }
 
+      // audit status change
       await conn.query(`UPDATE orders SET status = ? WHERE id = ?`, [String(status), id]);
+      try {
+        await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, userId, 'status', order.status || null, 'cancelled']);
+      } catch {}
 
       // Revert product statuses for items in this order back to 'unsold' if they were set to 'order_received'
       try {
@@ -344,7 +348,11 @@ router.put('/:id', async (req, res) => {
       if (Number(order.user_id) !== Number(userId)) {
         // For now, prevent others from changing payment status
       } else {
+        const old = order.payment_status || null;
         await conn.query(`UPDATE orders SET payment_status = ? WHERE id = ?`, [String(payment_status), id]);
+        try {
+          await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, userId, 'payment_status', old, String(payment_status)]);
+        } catch {}
       }
     }
 

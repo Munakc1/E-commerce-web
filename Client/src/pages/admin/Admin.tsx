@@ -3,7 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+// Recharts moved to lazy-loaded chart component for code-splitting
+// import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import React, { Suspense } from 'react';
+const AdminSalesChart = React.lazy(() => import('./AdminSalesChart'));
 
 
 type Summary = { users: number; products: number; orders: number; sales: number };
@@ -21,7 +24,9 @@ type Analytics = {
 export default function AdminPage() {
   const { token } = useAuth();
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const [tab, setTab] = useState<'dashboard'|'orders'|'products'|'users'>('dashboard');
+  const [tab, setTab] = useState<'dashboard'|'orders'|'products'|'users'|'payments'>('dashboard');
+  const [ledger, setLedger] = useState<any[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -48,10 +53,24 @@ export default function AdminPage() {
   const loadAnalytics = async () => {
     setAnalyticsLoading(true);
     try {
+      // Simple sessionStorage cache (2 min TTL)
+      const key = 'admin_sales_cache_v1';
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          if (cached && cached.ts && Date.now() - cached.ts < 2 * 60 * 1000) {
+            setAnalytics(cached.data);
+            setAnalyticsLoading(false);
+            return;
+          }
+        } catch {}
+      }
       const res = await fetch(`${apiBase}/api/admin/analytics/sales`, { headers });
       if (!res.ok) return;
       const data: Analytics = await res.json();
       setAnalytics(data);
+      try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
     } finally {
       setAnalyticsLoading(false);
     }
@@ -82,11 +101,22 @@ export default function AdminPage() {
     } finally { setLoading(false); }
   };
 
+  const loadLedger = async () => {
+    setLedgerLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/payments/ledger`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLedger(Array.isArray(data) ? data : []);
+    } finally { setLedgerLoading(false); }
+  };
+
   useEffect(() => {
     if (tab === 'orders') loadOrders();
     if (tab === 'products') loadProducts();
     if (tab === 'users') loadUsers();
     if (tab === 'dashboard') loadAnalytics();
+    if (tab === 'payments') loadLedger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -124,6 +154,29 @@ export default function AdminPage() {
             <button className={`text-left px-4 py-3 w-full border-b md:border-b-0 hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='orders' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('orders')}>Orders</button>
             <button className={`text-left px-4 py-3 w-full border-b md:border-b-0 hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='products' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('products')}>Products</button>
             <button className={`text-left px-4 py-3 w-full hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='users' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('users')}>Users</button>
+            <button className={`text-left px-4 py-3 w-full hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='payments' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('payments')}>Payments</button>
+          {tab === 'payments' && (
+            <Card className="border-none shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Payment Ledger</CardTitle><Button variant="ghost" onClick={loadLedger}>{ledgerLoading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
+              <CardContent className="space-y-3 max-h-[480px] overflow-auto">
+                {ledger.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No ledger entries yet.</div>
+                ) : (
+                  ledger.map(entry => (
+                    <div key={entry.id} className="border rounded p-3 text-sm flex flex-col gap-1">
+                      <div className="flex justify-between">
+                        <span className="font-medium">#{entry.id} • {entry.method}</span>
+                        <span className={entry.status === 'verified' ? 'text-green-600' : 'text-yellow-600'}>{entry.status}</span>
+                      </div>
+                      <div className="text-muted-foreground">Order: {entry.order_id || '—'} • Txn: {entry.gateway_txn_id || '—'}</div>
+                      <div className="text-muted-foreground">Amt: {entry.amount != null ? Number(entry.amount).toLocaleString() : '—'} {entry.currency}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
           </nav>
         </aside>
         <div className="space-y-6">
@@ -143,15 +196,9 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent>
                   {analytics?.salesLast30Days && analytics.salesLast30Days.length > 0 ? (
-                    <ChartContainer config={chartConfig} className="w-full">
-                      <LineChart data={analytics.salesLast30Days} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tickMargin={8} minTickGap={24} tickLine={false} axisLine={false} />
-                        <YAxis tickFormatter={(v) => Number(v).toLocaleString()} width={64} tickLine={false} axisLine={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ChartContainer>
+                    <Suspense fallback={<div className="text-sm text-muted-foreground">Loading chart…</div>}>
+                      <AdminSalesChart data={analytics.salesLast30Days} />
+                    </Suspense>
                   ) : (
                     <div className="text-sm text-muted-foreground">No sales data yet.</div>
                   )}

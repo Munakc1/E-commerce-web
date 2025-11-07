@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { ProductCard } from "@/components/product/ProductCard";
 import { toast } from "sonner";
 
 type Product = {
@@ -13,6 +14,7 @@ type Product = {
   title: string;
   price: number;
   originalPrice?: number | null;
+  category?: string;
   condition?: string;
   size?: string;
   brand?: string;
@@ -40,6 +42,12 @@ export default function ProductDetail() {
   const [contactMessage, setContactMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [similar, setSimilar] = useState<Product[]>([]);
+  const [avgRating, setAvgRating] = useState<number>(0);
+  const [reviewCount, setReviewCount] = useState<number>(0);
+  const [reviews, setReviews] = useState<Array<{ id: number; user_name: string | null; rating: number; comment?: string; created_at: string }>>([]);
+  const [myRating, setMyRating] = useState<number>(0);
+  const [myComment, setMyComment] = useState<string>("");
 
   // Add to cart helper
   const addToCart = () => {
@@ -90,6 +98,53 @@ export default function ProductDetail() {
     };
     load();
   }, [id, apiBase]);
+
+  // Load reviews
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (!id) return;
+      try {
+        const res = await fetch(`${apiBase}/api/reviews/product/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setAvgRating(Number(data.avgRating || 0));
+        setReviewCount(Number(data.count || 0));
+        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+      } catch {}
+    };
+    loadReviews();
+  }, [id, apiBase]);
+
+  // Load similar items (same category if available; otherwise price-nearby), exclude current
+  useEffect(() => {
+    const loadSimilar = async () => {
+      if (!product) return;
+      try {
+        const res = await fetch(`${apiBase}/api/products`);
+        if (!res.ok) return;
+        const all = await res.json();
+        const pid = String(product.id);
+        const basePrice = Number(product.price || 0);
+        const hasCategory = !!(product as any).category;
+        const norm = (v: any) => String(v || '').trim().toLowerCase();
+        const cat = norm((product as any).category);
+        const within = (p: any) => {
+          const price = Number(p.price || 0);
+          if (!basePrice) return true;
+          const low = basePrice * 0.7;
+          const high = basePrice * 1.3;
+          return price >= low && price <= high;
+        };
+        const candidates: Product[] = (Array.isArray(all) ? all : [])
+          .filter((p: any) => String(p.id) !== pid)
+          .filter((p: any) => (hasCategory ? norm(p.category || p.Category) === cat : true))
+          .filter(within)
+          .slice(0, 6);
+        setSimilar(candidates);
+      } catch {}
+    };
+    loadSimilar();
+  }, [product, apiBase]);
 
   // Prefill contact info
   useEffect(() => {
@@ -161,6 +216,15 @@ export default function ProductDetail() {
           <div>
             <h1 className="text-4xl font-bold mb-2">{product.title}</h1>
             {product.brand && <p className="text-gray-600">{product.brand}</p>}
+            <div className="mt-1 text-sm text-muted-foreground">
+              {reviewCount > 0 ? (
+                <span>
+                  Rating: {avgRating.toFixed(1)} / 5 • {reviewCount} review{reviewCount === 1 ? '' : 's'}
+                </span>
+              ) : (
+                <span>No reviews yet</span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -168,9 +232,16 @@ export default function ProductDetail() {
               NPR {Number(product.price || 0).toLocaleString()}
             </span>
             {!!product.originalPrice && (
-              <span className="text-xl text-gray-400 line-through">
-                NPR {Number(product.originalPrice).toLocaleString()}
-              </span>
+              <>
+                <span className="text-xl text-gray-400 line-through">
+                  NPR {Number(product.originalPrice).toLocaleString()}
+                </span>
+                {Number(product.originalPrice) > Number(product.price || 0) && (
+                  <span className="inline-flex items-center rounded-full bg-thrift-green text-white text-xs font-semibold px-2 py-1">
+                    -{Math.max(0, Math.round(100 - (Number(product.price || 0) / Number(product.originalPrice)) * 100))}%
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -271,6 +342,111 @@ export default function ProductDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reviews */}
+      <div className="mt-12 space-y-4">
+        <h2 className="text-2xl font-semibold">Reviews</h2>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            {reviews.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No reviews yet. Be the first to review this item.</div>
+            ) : (
+              <div className="space-y-3">
+                {reviews.map(r => (
+                  <div key={r.id} className="border rounded p-3">
+                    <div className="text-sm font-medium">{r.user_name || 'User'}</div>
+                    <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()} • {r.rating}★</div>
+                    {r.comment && <div className="mt-1 text-sm">{r.comment}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="border rounded p-4">
+              <div className="font-medium mb-2">Leave a review</div>
+              <div className="flex items-center gap-3 mb-3">
+                <label className="text-sm">Rating</label>
+                <select className="border rounded px-2 py-1 text-sm" value={myRating} onChange={(e) => setMyRating(Number(e.target.value))}>
+                  <option value={0}>Select…</option>
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <Textarea rows={3} placeholder="Write your thoughts (optional)" value={myComment} onChange={(e) => setMyComment(e.target.value)} />
+              <div className="mt-3 flex justify-end">
+                <Button
+                  onClick={async () => {
+                    if (!id || !myRating || myRating < 1 || myRating > 5) {
+                      toast.error('Please select a rating (1-5)');
+                      return;
+                    }
+                    try {
+                      const resp = await fetch(`${apiBase}/api/reviews`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({ productId: Number(id), rating: myRating, comment: myComment || undefined })
+                      });
+                      if (!resp.ok) throw new Error('Submit failed');
+                      toast.success('Review submitted');
+                      setMyRating(0);
+                      setMyComment('');
+                      // reload
+                      const res = await fetch(`${apiBase}/api/reviews/product/${id}`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        setAvgRating(Number(data.avgRating || 0));
+                        setReviewCount(Number(data.count || 0));
+                        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+                      }
+                    } catch (e:any) {
+                      toast.error(e?.message || 'Submit failed');
+                    }
+                  }}
+                >Submit</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Similar Items */}
+      {similar.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-semibold mb-4">Similar items you might like</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {similar.map((p) => {
+              const images = Array.isArray(p.images)
+                ? p.images
+                : (typeof (p as any).images === 'string' && (p as any).images.startsWith('[')
+                    ? JSON.parse((p as any).images)
+                    : ((p as any).image ? [(p as any).image] : []));
+              const brand = (p as any).brand || '';
+              const size = (p as any).size || '';
+              const condition = (p as any).productCondition || (p as any).condition || 'Good';
+              const seller = (p as any).seller || '';
+              const location = (p as any).location || '';
+              const status = (p as any).status || '';
+              return (
+                <div key={String(p.id)} onClick={() => navigate(`/product/${p.id}`)} className="cursor-pointer">
+                  <ProductCard
+                    id={String(p.id)}
+                    title={p.title}
+                    price={Number(p.price || 0)}
+                    originalPrice={p.originalPrice != null ? Number(p.originalPrice) : undefined}
+                    brand={brand}
+                    size={size}
+                    condition={condition as any}
+                    images={Array.isArray(images) && images.length > 0 ? images : ["https://via.placeholder.com/300"]}
+                    seller={seller}
+                    location={location}
+                    status={status}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

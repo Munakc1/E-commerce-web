@@ -142,7 +142,12 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
   try {
     await conn.beginTransaction();
     if (status) {
+      // fetch current for audit
+      const [[cur]] = await conn.query('SELECT status FROM orders WHERE id = ?', [id]);
       await conn.query('UPDATE orders SET status = ? WHERE id = ?', [String(status), id]);
+      try {
+        await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, req.adminId || null, 'status', cur?.status || null, String(status)]);
+      } catch {}
       if (String(status) === 'cancelled') {
         const [items] = await conn.query('SELECT product_id FROM order_items WHERE order_id = ?', [id]);
         const prodIds = (Array.isArray(items) ? items.map(r => Number(r.product_id)).filter(Boolean) : []);
@@ -153,7 +158,11 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
       }
     }
     if (payment_status) {
+      const [[cur]] = await conn.query('SELECT payment_status FROM orders WHERE id = ?', [id]);
       await conn.query('UPDATE orders SET payment_status = ? WHERE id = ?', [String(payment_status), id]);
+      try {
+        await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, req.adminId || null, 'payment_status', cur?.payment_status || null, String(payment_status)]);
+      } catch {}
     }
     await conn.commit();
     const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -164,6 +173,18 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Failed to update order' });
   } finally {
     conn.release();
+  }
+});
+
+// Fetch order audit log
+router.get('/orders/:id/audit', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const [rows] = await pool.query('SELECT id, field, old_value, new_value, actor_id, created_at FROM order_audit_log WHERE order_id = ? ORDER BY id DESC', [id]);
+    res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch audit log' });
   }
 });
 

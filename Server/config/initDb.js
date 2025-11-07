@@ -173,6 +173,53 @@ async function initDb() {
       CONSTRAINT fk_wishlist_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       CONSTRAINT fk_wishlist_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Minimal payment ledger for reconciliation demos
+    `CREATE TABLE IF NOT EXISTS payment_ledger (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NULL,
+      method VARCHAR(30) NOT NULL,
+      gateway_txn_id VARCHAR(150) NULL,
+      amount DECIMAL(12,2) NULL,
+      currency VARCHAR(10) DEFAULT 'NPR',
+      status VARCHAR(30) DEFAULT 'pending',
+      raw_payload JSON NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_order (order_id),
+      KEY idx_method (method),
+      CONSTRAINT fk_payment_ledger_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Order audit log (status & payment transitions)
+    `CREATE TABLE IF NOT EXISTS order_audit_log (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NOT NULL,
+      actor_id INT UNSIGNED NULL,
+      field VARCHAR(40) NOT NULL,
+      old_value VARCHAR(100) NULL,
+      new_value VARCHAR(100) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_order (order_id),
+      CONSTRAINT fk_order_audit_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      CONSTRAINT fk_order_audit_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Product reviews
+    `CREATE TABLE IF NOT EXISTS reviews (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      product_id INT UNSIGNED NOT NULL,
+      user_id INT UNSIGNED NULL,
+      rating TINYINT NOT NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_prod (product_id),
+      KEY idx_user (user_id),
+      CONSTRAINT fk_reviews_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      CONSTRAINT fk_reviews_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
   ];
 
   for (const sql of statements) {

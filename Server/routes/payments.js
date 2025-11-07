@@ -302,3 +302,71 @@ router.all('/khalti/return', async (req, res) => {
     return res.redirect(302, `${clientBase}/failure?method=khalti&reason=exception`);
   }
 });
+
+// =============== Generic Verify (stub for reconciliation demos) ===============
+// POST /api/payments/verify { method: 'esewa'|'khalti'|'cod', orderId?, txn? }
+router.post('/verify', async (req, res) => {
+  try {
+    const { method, orderId: rawOrderId, txn } = req.body || {};
+    const methodLc = String(method || '').toLowerCase();
+    if (!methodLc) return res.status(400).json({ ok: false, message: 'method required' });
+
+    let orderId = rawOrderId ? Number(rawOrderId) : null;
+    let gateway_txn_id = txn ? String(txn) : null;
+    let amount = null;
+    let reconciled = false;
+
+    // If orderId not provided, try to resolve via txn mapping on orders
+    if (!orderId && gateway_txn_id) {
+      if (methodLc === 'esewa') {
+        const [rows] = await pool.query('SELECT id, total FROM orders WHERE esewa_transaction_uuid = ? LIMIT 1', [gateway_txn_id]);
+        if (Array.isArray(rows) && rows[0]) { orderId = rows[0].id; amount = rows[0].total; }
+      } else if (methodLc === 'khalti') {
+        const [rows] = await pool.query('SELECT id, total FROM orders WHERE khalti_pidx = ? LIMIT 1', [gateway_txn_id]);
+        if (Array.isArray(rows) && rows[0]) { orderId = rows[0].id; amount = rows[0].total; }
+      }
+    }
+
+    // If orderId provided, complete mapping and basic reconciliation checks
+    if (orderId) {
+      const [rows] = await pool.query('SELECT id, total, payment_status, esewa_transaction_uuid, khalti_pidx FROM orders WHERE id = ? LIMIT 1', [orderId]);
+      const ord = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      if (ord) {
+        amount = amount ?? ord.total;
+        if (methodLc === 'esewa') {
+          reconciled = !!ord.esewa_transaction_uuid && (!gateway_txn_id || ord.esewa_transaction_uuid === String(gateway_txn_id));
+          gateway_txn_id = gateway_txn_id || ord.esewa_transaction_uuid || null;
+        } else if (methodLc === 'khalti') {
+          reconciled = !!ord.khalti_pidx && (!gateway_txn_id || ord.khalti_pidx === String(gateway_txn_id));
+          gateway_txn_id = gateway_txn_id || ord.khalti_pidx || null;
+        } else if (methodLc === 'cod') {
+          // Cash on Delivery: considered pending until order delivered
+          reconciled = String(ord.payment_status || '').toLowerCase() === 'paid';
+        }
+      }
+    }
+
+    // Write to ledger (best-effort)
+    try {
+      const payload = JSON.stringify({ method: methodLc, orderId, txn: gateway_txn_id, client: req.headers['user-agent'] || null });
+      await pool.query(
+        'INSERT INTO payment_ledger (order_id, method, gateway_txn_id, amount, status, raw_payload) VALUES (?, ?, ?, ?, ?, ?)',
+        [orderId, methodLc, gateway_txn_id, amount, reconciled ? 'verified' : 'pending', payload]
+      );
+    } catch (e) { /* non-fatal */ }
+
+    return res.json({ ok: true, reconciled, orderId, txn: gateway_txn_id });
+  } catch (e) {
+    return res.status(500).json({ ok: false, message: 'verify failed', error: e && e.message ? e.message : String(e) });
+  }
+});
+
+// GET /api/payments/ledger - recent ledger entries (demo)
+router.get('/ledger', async (_req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, order_id, method, gateway_txn_id, amount, currency, status, created_at FROM payment_ledger ORDER BY id DESC LIMIT 50');
+    return res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    return res.status(500).json({ message: 'failed to read ledger' });
+  }
+});
