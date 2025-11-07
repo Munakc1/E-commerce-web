@@ -112,6 +112,14 @@ router.post('/esewa/verify', async (req, res) => {
           orderId = order.id;
           await pool.query('UPDATE orders SET payment_status = ?, status = ? WHERE id = ?', ['paid', 'confirmed', orderId]);
           updated = 1;
+          // Write ledger entry on verify
+          try {
+            const amount = Number(payload.total_amount || payload.amount || 0) || null;
+            await pool.query(
+              'INSERT INTO payment_ledger (order_id, method, gateway_txn_id, amount, currency, status, raw_payload) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [orderId, 'esewa', txn, amount, 'NPR', 'verified', JSON.stringify(payload)]
+            );
+          } catch {}
         }
       }
     } catch (e) {
@@ -172,6 +180,16 @@ const handleEsewaSuccess = async (req, res) => {
 
     const txn = payload.transaction_uuid ? String(payload.transaction_uuid) : null;
   const { orderId } = await markOrderPaidByTxn(pool, txn);
+    // Record ledger on success redirect as well (idempotent-ish)
+    try {
+      const amount = Number(payload.total_amount || payload.amount || 0) || null;
+      if (txn) {
+        await pool.query(
+          'INSERT INTO payment_ledger (order_id, method, gateway_txn_id, amount, currency, status, raw_payload) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [orderId, 'esewa', txn, amount, 'NPR', 'verified', JSON.stringify(payload)]
+        );
+      }
+    } catch {}
   // Prefer redirecting directly to order details page for a better UX
   const to = orderId ? `${clientBase}/order/${orderId}` : `${clientBase}/success?method=esewa`;
     return res.redirect(302, to);
@@ -286,6 +304,15 @@ router.all('/khalti/return', async (req, res) => {
       if (order) {
         if (completed) {
           await pool.query('UPDATE orders SET payment_status = ?, status = ? WHERE id = ?', ['paid', 'confirmed', order.id]);
+          // Write ledger row for completed Khalti payment
+          try {
+            const txnId = info?.transaction_id || String(pidx);
+            const amount = info?.total_amount != null ? Number(info.total_amount) / 100 : null; // Khalti amount in paisa
+            await pool.query(
+              'INSERT INTO payment_ledger (order_id, method, gateway_txn_id, amount, currency, status, raw_payload) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [order.id, 'khalti', txnId, amount, 'NPR', 'verified', JSON.stringify(info)]
+            );
+          } catch {}
           to = `${clientBase}/order/${order.id}`;
         } else if (statusLc === 'pending' || statusLc === 'initiated') {
           // Show order page with pending state rather than immediate failure

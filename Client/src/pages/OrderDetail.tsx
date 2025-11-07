@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -16,6 +17,10 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [sellers, setSellers] = useState<Array<{ sellerId: number; seller: string }>>([]);
+  const [feedback, setFeedback] = useState<{ sellerId?: number; rating: number; as_described: boolean; comment: string }>({ rating: 5, as_described: true, comment: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewsBySeller, setReviewsBySeller] = useState<Record<number, { rating: number | null; as_described: boolean; comment?: string | null; created_at?: string }>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -66,6 +71,104 @@ export default function OrderDetail() {
       }
     } catch {}
   }, [order]);
+
+  // Resolve sellers for this order by fetching product details for each item
+  useEffect(() => {
+    const resolveSellers = async () => {
+      try {
+        if (!order || !Array.isArray(order.items) || order.items.length === 0) return;
+        const seen = new Map<number, string>();
+        await Promise.all(order.items.map(async (it: any) => {
+          const pid = Number(it.product_id || it.productId);
+          if (!pid) return;
+          try {
+            const res = await fetch(`${apiBase}/api/products/${pid}`);
+            if (!res.ok) return;
+            const p = await res.json();
+            const sid = Number(p.sellerId || p.user_id);
+            if (sid && !seen.has(sid)) seen.set(sid, p.seller || `Seller #${sid}`);
+          } catch {}
+        }));
+        const list = Array.from(seen.entries()).map(([sellerId, seller]) => ({ sellerId, seller }));
+        setSellers(list);
+        if (list.length === 1) setFeedback(prev => ({ ...prev, sellerId: list[0].sellerId }));
+      } catch {}
+    };
+    resolveSellers();
+  }, [order, apiBase]);
+
+  // Once sellers are known, fetch existing reviews by current user for this order
+  useEffect(() => {
+    const loadExisting = async () => {
+      try {
+        if (!order || !token || !sellers.length) return;
+        const myId = (() => {
+          try { const payload = JSON.parse(atob((token.split('.')[1]||'') )); return Number(payload.userId || payload.id) || null; } catch { return null; }
+        })();
+        if (!myId) return;
+        const oid = Number(order.id || order.order_id);
+        const map: Record<number, { rating: number | null; as_described: boolean; comment?: string | null; created_at?: string }> = {};
+        await Promise.all(sellers.map(async s => {
+          try {
+            const res = await fetch(`${apiBase}/api/sellers/${s.sellerId}/feedback`);
+            if (!res.ok) return;
+            const rows = await res.json();
+            const mine = (Array.isArray(rows) ? rows : []).find((r: any) => Number(r.buyer_id) === myId && Number(r.order_id) === oid);
+            if (mine) {
+              map[s.sellerId] = { rating: mine.rating != null ? Number(mine.rating) : null, as_described: Boolean(mine.as_described), comment: mine.comment || null, created_at: mine.created_at };
+            }
+          } catch {}
+        }));
+        setReviewsBySeller(map);
+      } catch {}
+    };
+    loadExisting();
+  }, [sellers, order, token, apiBase]);
+
+  const canLeaveFeedback = useMemo(() => {
+    if (!order) return false;
+    const paid = String(order.payment_status || order.paymentStatus || '').toLowerCase() === 'paid';
+    const cancelled = String(order.status || order.order_status || '').toLowerCase() === 'cancelled';
+    return paid && !cancelled;
+  }, [order]);
+
+  const submitFeedback = async () => {
+    if (!order) return;
+    const oid = Number(order.id || order.order_id);
+    const sid = Number(feedback.sellerId || 0);
+    if (sellers.length > 1 && !sid) {
+      toast({ title: 'Select seller', description: 'Choose which seller to review for this order.' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const resp = await fetch(`${apiBase}/api/sellers/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ orderId: oid, sellerId: sid || undefined, rating: feedback.rating, as_described: feedback.as_described, comment: feedback.comment || undefined }),
+      });
+      if (resp.status === 409) {
+        toast({ title: 'Already submitted', description: 'You have already left feedback for this order/seller.' });
+        return;
+      }
+      if (!resp.ok) {
+        const t = await resp.text();
+        throw new Error(t || 'Feedback failed');
+      }
+      toast({ title: 'Thanks for your feedback!', description: 'Your review helps build seller trust.' });
+      const entry = { rating: feedback.rating, as_described: feedback.as_described, comment: feedback.comment, created_at: new Date().toISOString() };
+      const sidToSet = sid || (sellers.length === 1 ? sellers[0].sellerId : undefined);
+      if (sidToSet) setReviewsBySeller(prev => ({ ...prev, [sidToSet]: entry }));
+      setFeedback({ rating: 5, as_described: true, comment: '', sellerId: sellers.length === 1 ? sellers[0].sellerId : undefined });
+    } catch (e: any) {
+      toast({ title: 'Unable to submit', description: e?.message || 'Please try again' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!order) return;
@@ -157,6 +260,76 @@ export default function OrderDetail() {
               <Button variant="destructive" onClick={handleCancel}>Cancel Order</Button>
             )}
           </div>
+
+          {/* Buyer Feedback */}
+          {canLeaveFeedback && (
+            <div className="mt-8 border-t pt-6">
+              <h3 className="font-semibold mb-2">How was your purchase?</h3>
+              {/* If single seller and already reviewed, show the review and no form */}
+              {sellers.length === 1 && reviewsBySeller[sellers[0].sellerId] && (
+                <div className="rounded-md border p-4 bg-card/50">
+                  <div className="text-sm mb-1">Your review for {sellers[0].seller}:</div>
+                  <div className="text-sm">Rating: <span className="font-medium">{reviewsBySeller[sellers[0].sellerId].rating ?? '—'}</span></div>
+                  <div className="text-sm">As described: <span className="font-medium">{reviewsBySeller[sellers[0].sellerId].as_described ? 'Yes' : 'No'}</span></div>
+                  {reviewsBySeller[sellers[0].sellerId].comment && (
+                    <div className="text-sm mt-1">Comment: <span className="font-medium">{reviewsBySeller[sellers[0].sellerId].comment}</span></div>
+                  )}
+                  <div className="text-[11px] mt-2 text-muted-foreground">Submitted {new Date(reviewsBySeller[sellers[0].sellerId].created_at || Date.now()).toLocaleString()}</div>
+                </div>
+              )}
+
+              {/* For multiple sellers, allow selecting seller; if selected is reviewed, show the review instead of form */}
+              {sellers.length > 1 && (
+                <div className="mb-3 text-sm">
+                  <label className="block mb-1">Choose seller to review</label>
+                  <select value={feedback.sellerId || ''} onChange={(e) => setFeedback(prev => ({ ...prev, sellerId: e.target.value ? Number(e.target.value) : undefined }))} className="border rounded p-2 text-sm">
+                    <option value="">Select seller</option>
+                    {sellers.map(s => (
+                      <option key={s.sellerId} value={s.sellerId}>{s.seller}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {!(sellers.length === 1 && reviewsBySeller[sellers[0].sellerId]) && (!feedback.sellerId || !reviewsBySeller[feedback.sellerId]) && (
+                <div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                    <div>
+                      <label className="block text-sm mb-1">Rating</label>
+                      <select value={feedback.rating} onChange={(e) => setFeedback(prev => ({ ...prev, rating: Number(e.target.value) }))} className="border rounded p-2 text-sm w-full">
+                        {[5,4,3,2,1].map(r => <option key={r} value={r}>{r} star{r>1?'s':''}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input id="as-desc" type="checkbox" checked={feedback.as_described} onChange={(e) => setFeedback(prev => ({ ...prev, as_described: e.target.checked }))} />
+                      <label htmlFor="as-desc" className="text-sm">Item as described</label>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Textarea placeholder="Optional comment" value={feedback.comment} onChange={(e) => setFeedback(prev => ({ ...prev, comment: e.target.value }))} />
+                  </div>
+                  <div className="mt-3">
+                    <Button onClick={submitFeedback} disabled={submitting || (sellers.length > 1 && !feedback.sellerId)}>
+                      {submitting ? 'Submitting…' : 'Submit Feedback'}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Feedback is tied to this order to help others trust sellers. One feedback per seller per order.</p>
+                </div>
+              )}
+
+              {/* For multi-seller, if the selected seller already has a review, show it */}
+              {sellers.length > 1 && feedback.sellerId && reviewsBySeller[feedback.sellerId] && (
+                <div className="rounded-md border p-4 bg-card/50">
+                  <div className="text-sm mb-1">Your review for {sellers.find(s => s.sellerId === feedback.sellerId)?.seller}:</div>
+                  <div className="text-sm">Rating: <span className="font-medium">{reviewsBySeller[feedback.sellerId].rating ?? '—'}</span></div>
+                  <div className="text-sm">As described: <span className="font-medium">{reviewsBySeller[feedback.sellerId].as_described ? 'Yes' : 'No'}</span></div>
+                  {reviewsBySeller[feedback.sellerId].comment && (
+                    <div className="text-sm mt-1">Comment: <span className="font-medium">{reviewsBySeller[feedback.sellerId].comment}</span></div>
+                  )}
+                  <div className="text-[11px] mt-2 text-muted-foreground">Submitted {new Date(reviewsBySeller[feedback.sellerId].created_at || Date.now()).toLocaleString()}</div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

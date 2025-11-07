@@ -22,6 +22,7 @@ interface ProductCardProps {
   location: string;
   className?: string;
   status?: string;
+  isVerifiedSeller?: boolean;
 }
 
 export const ProductCard = ({
@@ -38,6 +39,7 @@ export const ProductCard = ({
   location,
   className,
   status,
+  isVerifiedSeller = false,
 }: ProductCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [liked, setLiked] = useState(isLiked);
@@ -246,7 +248,14 @@ export const ProductCard = ({
           <Badge variant="outline" className="text-xs">
             Size {size}
           </Badge>
-          <span className="text-xs text-muted-foreground">by {seller}</span>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            by {seller}
+            {isVerifiedSeller && (
+              <span title="Verified seller" className="inline-flex items-center gap-1 rounded-full bg-thrift-green text-white px-1.5 py-0.5 text-[10px] font-semibold">
+                ✓ <span className="hidden sm:inline">Verified</span>
+              </span>
+            )}
+          </span>
         </div>
 
         {/* Price & Discount */}

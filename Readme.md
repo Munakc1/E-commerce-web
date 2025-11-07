@@ -73,12 +73,14 @@ Note: If these accounts don’t exist in your DB yet, create them via Sign Up th
 ## Notable features to demo
 
 - Themed UI: inputs, selects, dropdowns; discount badges; brand styling
-- Listings: filters (category, price, sort) + new quick filters: On Sale, Featured
-- Product Detail: Similar items now reuse the same ProductCard for consistent actions
+- Listings: filters (category, price, sort, brand, condition, size) + quick filters: On Sale, Featured
+- Product Detail: Similar items via reusable `ProductCard` (heuristic recommendation)
 - Checkout: COD, eSewa, Khalti; idempotent order creation
 - Admin: lazy‑loaded analytics chart with small session cache
-- Seller UX: toast feedback on listing submission
-- Payment ledger: minimal SQL table for reconciliation tales; generic verification endpoint
+- Seller UX: toast feedback + drag & drop image upload (up to 8 images)
+- Seller verification: apply with documents, admin approval, verified badge, and Shop filter (verified sellers only); listing gated until verified
+- Payment ledger: minimal SQL table & generic verification endpoint
+- Order audit log: tracks status/payment transitions for traceability
 
 ---
 
@@ -89,6 +91,45 @@ Note: If these accounts don’t exist in your DB yet, create them via Sign Up th
 	- POST `/api/payments/verify` — accepts `{ method, orderId?, txn? }`, checks `orders` mappings (eSewa UUID or Khalti pidx), writes a ledger row and returns `{ reconciled, orderId }`
 	- GET `/api/payments/ledger` — returns last 50 ledger entries
 - Existing flows already map `orders.esewa_transaction_uuid` and `orders.khalti_pidx` during initiation and mark Paid on provider callbacks
+
+---
+
+## Seller Verification
+
+	- POST `/api/sellers/verify/apply` — multipart form with `shop_name` and `documents[]` (images or PDF). Requires auth.
+	- GET `/api/sellers/:id/status` — verification status and latest application.
+	- Admin:
+		- GET `/api/sellers/admin/sellers/pending` — list pending applications
+		- PUT `/api/sellers/admin/sellers/:id/approve` — approve, set `users.is_verified_seller=1`
+		- PUT `/api/sellers/admin/sellers/:id/reject` — reject with optional notes
+	- Page `/apply-verification` to submit/update application.
+	- Badge on seller name and a “Verified Sellers” filter in Shop.
+	- Sell page blocks publishing until verified (shows CTA to apply).
+## Seller Trust (Peer Feedback)
+
+Originally a pre‑listing verification system; now shifted to post‑purchase peer feedback so buyers build seller reputation organically.
+
+### Schema
+- `seller_feedback` table: `id, order_id, seller_id, buyer_id, as_described TINYINT(1), rating TINYINT, comment TEXT, created_at`.
+- Legacy `users.is_verified_seller` and `seller_verifications` remain for backward compatibility but are no longer enforced for listing.
+
+### Endpoints
+- POST `/api/sellers/feedback` — body `{ orderId, sellerId?, rating (1-5), as_described (boolean), comment? }`. Requires buyer auth. One per seller per order.
+- GET `/api/sellers/:id/feedback/summary` — returns `{ seller_id, total, positives, percentage, avgRating, recent[] }`.
+- GET `/api/sellers/:id/feedback` — list (recent) feedback rows including `order_id` for client dedup.
+
+### Client UX
+- Product Detail shows a trust badge once feedback exists: `92% as-described · ★4.6 (42)`.
+- Order Detail: after payment, buyer can submit feedback (or sees their existing review instead of the form).
+- Shop “Verified Sellers” label repurposed as “Trusted Sellers”. Threshold logic can be added later (e.g., percentage >= 80 with >=5 reviews).
+
+### Future Enhancements
+- Add server-side trusted flag in product list based on thresholds.
+- Admin moderation (hide abusive comments, aggregate suspicious patterns).
+- Time‑decay weighting so recent feedback counts more.
+
+### Legacy Verification (Optional)
+Endpoints under `/api/sellers/verify/*` and the `/apply-verification` page still exist but publishing is no longer gated; consider removing when no longer needed.
 
 ---
 
@@ -107,8 +148,33 @@ Client:
 ## Troubleshooting
 
 - If images don’t load: ensure `Server/public/uploads` exists (it’s created automatically) and that product images were uploaded.
+- If bulk CSV import skips rows: confirm required headers `title,price` are present and price > 0.
 - If payments fail in sandbox: verify keys and base URLs in `.env` match your local ports.
 - If tables are missing: restart the server; `initDb.js` creates/patches tables on boot.
+
+## Bulk import products (CSV)
+
+Admin users can upload a CSV to create many products.
+
+Endpoint: `POST /api/admin/products/bulk` (multipart/form-data, field `file`)
+
+Headers (case-insensitive):
+`title,price,originalPrice,brand,category,size,productCondition,location,imageUrl`
+
+Notes:
+- `title` (required), `price` (required > 0)
+- `imageUrl` can contain multiple absolute URLs separated by `|`; first becomes main image, all stored in `product_images`.
+- Rows failing minimal validation are skipped (not aborted).
+- Products are attributed to the uploading admin.
+
+Example:
+```
+title,price,originalPrice,brand,category,size,productCondition,location,imageUrl
+Vintage Denim Jacket,2500,4000,Levis,women,M,excellent,Kathmandu,https://example.com/a.jpg|https://example.com/b.jpg
+Classic White Tee,800,,Uniqlo,men,L,good,Lalitpur,https://example.com/tee.jpg
+```
+
+For SQL-based bulk import, you can craft `INSERT INTO products (...) VALUES (...);` statements; see `Server/config/initDb.js` for column names.
 
 ---
 

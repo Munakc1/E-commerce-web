@@ -97,16 +97,21 @@ async function requireOwner(req, res, productId) {
 // GET /api/products - list products with images (compatible with older MySQL/MariaDB)
 router.get('/', async (req, res) => {
   try {
-    // Fetch products first (include user_id as sellerId for clarity)
+    const { verified } = req.query;
+    const verifiedOnly = String(verified || '').toLowerCase() === 'true';
+    // Fetch products with seller verification flag joined from users
     const [products] = await pool.query(
-      'SELECT * FROM products ORDER BY created_at DESC'
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       ORDER BY p.created_at DESC`
     );
     if (!Array.isArray(products) || products.length === 0) {
       return res.json([]);
     }
-
-    // Fetch images in one query and group them by product_id
-    const ids = products.map((p) => p.id);
+    // Optionally filter by verified sellers
+    const filtered = verifiedOnly ? products.filter(p => Number(p.is_verified_seller) === 1) : products;
+    const ids = filtered.map(p => p.id);
+    if (ids.length === 0) return res.json([]);
     const placeholders = ids.map(() => '?').join(',');
     const [imgRows] = await pool.query(
       `SELECT product_id, image_url FROM product_images WHERE product_id IN (${placeholders})`,
@@ -119,8 +124,7 @@ router.get('/', async (req, res) => {
         imgMap.get(r.product_id).push(r.image_url);
       }
     }
-
-    const out = products.map((p) => ({ ...p, sellerId: p.user_id || null, images: imgMap.get(p.id) || [] }));
+    const out = filtered.map(p => ({ ...p, sellerId: p.user_id || null, is_verified_seller: Number(p.is_verified_seller) === 1, images: imgMap.get(p.id) || [] }));
     return res.json(out);
   } catch (err) {
     console.error('products GET error:', err);
@@ -144,15 +148,16 @@ router.get('/mine', async (req, res) => {
     }
     const userId = Number(payload.userId || payload.id) || null;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
     const [products] = await pool.query(
-      'SELECT * FROM products WHERE user_id = ? ORDER BY created_at DESC',
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.user_id = ? ORDER BY p.created_at DESC`,
       [userId]
     );
     if (!Array.isArray(products) || products.length === 0) {
       return res.json([]);
     }
-    const ids = products.map((p) => p.id);
+    const ids = products.map(p => p.id);
     const placeholders = ids.map(() => '?').join(',');
     const [imgRows] = await pool.query(
       `SELECT product_id, image_url FROM product_images WHERE product_id IN (${placeholders})`,
@@ -165,7 +170,7 @@ router.get('/mine', async (req, res) => {
         imgMap.get(r.product_id).push(r.image_url);
       }
     }
-    const out = products.map((p) => ({ ...p, sellerId: p.user_id || null, images: imgMap.get(p.id) || [] }));
+    const out = products.map(p => ({ ...p, sellerId: p.user_id || null, is_verified_seller: Number(p.is_verified_seller) === 1, images: imgMap.get(p.id) || [] }));
     return res.json(out);
   } catch (err) {
     console.error('products MINE GET error:', err);
@@ -178,12 +183,17 @@ router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: 'Invalid id' });
-    const [products] = await pool.query('SELECT * FROM products WHERE id = ?', [id]);
+    const [products] = await pool.query(
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.id = ? LIMIT 1`,
+      [id]
+    );
     if (!Array.isArray(products) || products.length === 0) return res.status(404).json({ message: 'Product not found' });
     const product = products[0];
     const [imgs] = await pool.query('SELECT image_url FROM product_images WHERE product_id = ?', [id]);
     const images = Array.isArray(imgs) ? imgs.map(r => r.image_url) : [];
-    res.json({ ...product, sellerId: product.user_id || null, images });
+    res.json({ ...product, sellerId: product.user_id || null, is_verified_seller: Number(product.is_verified_seller) === 1, images });
   } catch (err) {
     console.error('product detail GET error:', err);
     res.status(500).json({ message: 'Failed to fetch product' });

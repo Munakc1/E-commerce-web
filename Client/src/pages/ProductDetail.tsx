@@ -25,6 +25,8 @@ type Product = {
   image?: string;
   location?: string;
   status?: string;
+  is_verified_seller?: boolean;
+  sellerId?: number | null;
 };
 
 export default function ProductDetail() {
@@ -43,11 +45,8 @@ export default function ProductDetail() {
   const [sending, setSending] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [similar, setSimilar] = useState<Product[]>([]);
-  const [avgRating, setAvgRating] = useState<number>(0);
-  const [reviewCount, setReviewCount] = useState<number>(0);
-  const [reviews, setReviews] = useState<Array<{ id: number; user_name: string | null; rating: number; comment?: string; created_at: string }>>([]);
-  const [myRating, setMyRating] = useState<number>(0);
-  const [myComment, setMyComment] = useState<string>("");
+  const [trustLoading, setTrustLoading] = useState(false);
+  const [trustSummary, setTrustSummary] = useState<{ percentage: number; total: number; avgRating: number | null } | null>(null);
 
   // Add to cart helper
   const addToCart = () => {
@@ -99,21 +98,25 @@ export default function ProductDetail() {
     load();
   }, [id, apiBase]);
 
-  // Load reviews
+  // Load seller trust summary (peer feedback) once product loaded and has sellerId
   useEffect(() => {
-    const loadReviews = async () => {
-      if (!id) return;
+    const fetchTrust = async () => {
+      if (!product || !product.sellerId) return;
+      setTrustLoading(true);
       try {
-        const res = await fetch(`${apiBase}/api/reviews/product/${id}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setAvgRating(Number(data.avgRating || 0));
-        setReviewCount(Number(data.count || 0));
-        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
-      } catch {}
+        const res = await fetch(`${apiBase}/api/sellers/${product.sellerId}/feedback/summary`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrustSummary({ percentage: Number(data.percentage || 0), total: Number(data.total || 0), avgRating: data.avgRating != null ? Number(data.avgRating) : null });
+        }
+      } catch {
+        setTrustSummary(null);
+      } finally {
+        setTrustLoading(false);
+      }
     };
-    loadReviews();
-  }, [id, apiBase]);
+    fetchTrust();
+  }, [product, apiBase]);
 
   // Load similar items (same category if available; otherwise price-nearby), exclude current
   useEffect(() => {
@@ -186,13 +189,15 @@ export default function ProductDetail() {
       </Button>
 
       <div className="grid md:grid-cols-2 gap-12">
-        {/* Product Image */}
+        {/* Product Image (fixed aspect ratio to prevent oversized rendering) */}
         <div>
-          <img
-            src={mainImage}
-            alt={product.title}
-            className="w-full rounded-lg border"
-          />
+          <div className="relative w-full overflow-hidden rounded-lg border bg-black/5 aspect-[3/4]">
+            <img
+              src={mainImage}
+              alt={product.title}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </div>
           {Array.isArray(product.images) && product.images.length > 1 && (
             <div className="mt-4 grid grid-cols-4 gap-2">
               {product.images.slice(0, 8).map((img, idx) => (
@@ -216,15 +221,6 @@ export default function ProductDetail() {
           <div>
             <h1 className="text-4xl font-bold mb-2">{product.title}</h1>
             {product.brand && <p className="text-gray-600">{product.brand}</p>}
-            <div className="mt-1 text-sm text-muted-foreground">
-              {reviewCount > 0 ? (
-                <span>
-                  Rating: {avgRating.toFixed(1)} / 5 • {reviewCount} review{reviewCount === 1 ? '' : 's'}
-                </span>
-              ) : (
-                <span>No reviews yet</span>
-              )}
-            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -256,8 +252,20 @@ export default function ProductDetail() {
               <p><span className="font-semibold">Location:</span> {product.location}</p>
             )}
             {product.seller && (
-              <p className="select-none">
+              <p className="select-none flex items-center gap-2">
                 <span className="font-semibold">Seller:</span> {product.seller}
+                {/* Legacy verified badge deprecated; trust summary shown instead */}
+                {trustLoading && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">Loading trust…</span>
+                )}
+                {!trustLoading && trustSummary && trustSummary.total > 0 && (
+                  <span title="Buyer feedback summary" className="inline-flex items-center gap-1 rounded-full bg-thrift-green text-white px-2 py-0.5 text-[10px] font-semibold">
+                    {trustSummary.percentage}% as-described · {trustSummary.avgRating != null ? `★${trustSummary.avgRating.toFixed(1)}` : 'No rating'} ({trustSummary.total})
+                  </span>
+                )}
+                {!trustLoading && (!trustSummary || trustSummary.total === 0) && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600" title="No buyer feedback yet">No feedback yet</span>
+                )}
               </p>
             )}
             <p className="text-sm text-muted-foreground">
@@ -343,72 +351,6 @@ export default function ProductDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Reviews */}
-      <div className="mt-12 space-y-4">
-        <h2 className="text-2xl font-semibold">Reviews</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            {reviews.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No reviews yet. Be the first to review this item.</div>
-            ) : (
-              <div className="space-y-3">
-                {reviews.map(r => (
-                  <div key={r.id} className="border rounded p-3">
-                    <div className="text-sm font-medium">{r.user_name || 'User'}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()} • {r.rating}★</div>
-                    {r.comment && <div className="mt-1 text-sm">{r.comment}</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="border rounded p-4">
-              <div className="font-medium mb-2">Leave a review</div>
-              <div className="flex items-center gap-3 mb-3">
-                <label className="text-sm">Rating</label>
-                <select className="border rounded px-2 py-1 text-sm" value={myRating} onChange={(e) => setMyRating(Number(e.target.value))}>
-                  <option value={0}>Select…</option>
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-              <Textarea rows={3} placeholder="Write your thoughts (optional)" value={myComment} onChange={(e) => setMyComment(e.target.value)} />
-              <div className="mt-3 flex justify-end">
-                <Button
-                  onClick={async () => {
-                    if (!id || !myRating || myRating < 1 || myRating > 5) {
-                      toast.error('Please select a rating (1-5)');
-                      return;
-                    }
-                    try {
-                      const resp = await fetch(`${apiBase}/api/reviews`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                        body: JSON.stringify({ productId: Number(id), rating: myRating, comment: myComment || undefined })
-                      });
-                      if (!resp.ok) throw new Error('Submit failed');
-                      toast.success('Review submitted');
-                      setMyRating(0);
-                      setMyComment('');
-                      // reload
-                      const res = await fetch(`${apiBase}/api/reviews/product/${id}`);
-                      if (res.ok) {
-                        const data = await res.json();
-                        setAvgRating(Number(data.avgRating || 0));
-                        setReviewCount(Number(data.count || 0));
-                        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
-                      }
-                    } catch (e:any) {
-                      toast.error(e?.message || 'Submit failed');
-                    }
-                  }}
-                >Submit</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Similar Items */}
       {similar.length > 0 && (
         <div className="mt-16">
@@ -440,6 +382,7 @@ export default function ProductDetail() {
                     seller={seller}
                     location={location}
                     status={status}
+                    isVerifiedSeller={Boolean((p as any).is_verified_seller)}
                   />
                 </div>
               );

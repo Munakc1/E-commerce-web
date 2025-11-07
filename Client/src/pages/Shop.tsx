@@ -23,6 +23,7 @@ interface Listing {
   images: string[];
   createdAt: string;
   status?: string;
+  is_verified_seller?: boolean;
 }
 
 // Canonical category mapping to keep Home -> Shop links and backend data consistent
@@ -64,6 +65,7 @@ const Shop = () => {
   const [priceFilter, setPriceFilter] = useState("all");
   const [onSaleOnly, setOnSaleOnly] = useState(false);
   const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false); // UI label "Trusted sellers" (legacy flag for now)
   const [brandFilter, setBrandFilter] = useState<string>("");
   const [conditionFilter, setConditionFilter] = useState<string>("all");
   const [sizeFilter, setSizeFilter] = useState<string>("");
@@ -124,6 +126,7 @@ const Shop = () => {
                 : (p.image ? [p.image] : [])),
           createdAt: p.created_at || p.createdAt || new Date().toISOString(),
           status: (p.status || p.product_status || '').toString(),
+          is_verified_seller: p.is_verified_seller === 1 || p.is_verified_seller === true,
         }));
         setListings(items);
         setFilteredListings(items);
@@ -148,6 +151,7 @@ const Shop = () => {
                 : (p.image ? [p.image] : [])),
           createdAt: p.created_at || p.createdAt || new Date().toISOString(),
           status: (p.status || p.product_status || '').toString(),
+          is_verified_seller: p.is_verified_seller === 1 || p.is_verified_seller === true,
         }));
         setListings(stored);
         setFilteredListings(stored);
@@ -238,6 +242,9 @@ const Shop = () => {
     if (featuredOnly) {
       updatedListings = updatedListings.filter((l, idx) => isFeatured(l, idx));
     }
+    if (verifiedOnly) {
+      updatedListings = updatedListings.filter(l => l.is_verified_seller);
+    }
 
     // Filter by brand
     if (brandFilter.trim()) {
@@ -274,7 +281,7 @@ const Shop = () => {
     }
 
     setFilteredListings(updatedListings);
-  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery, onSaleOnly, featuredOnly, brandFilter, conditionFilter, sizeFilter]);
+  }, [categoryFilter, priceFilter, sortOrder, listings, searchQuery, onSaleOnly, featuredOnly, brandFilter, conditionFilter, sizeFilter, verifiedOnly]);
 
   // Reflect category/search in URL for shareability (only when changed)
   useEffect(() => {
@@ -539,6 +546,17 @@ const Shop = () => {
               aria-pressed={featuredOnly}
             >
               {featuredOnly ? "✓ Featured" : "Featured"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerifiedOnly(v => !v)}
+              className={cn(
+                "h-10 rounded-md border px-3 text-sm text-left col-span-2",
+                verifiedOnly ? "border-thrift-green bg-thrift-green/10" : "hover:bg-muted/50"
+              )}
+              aria-pressed={verifiedOnly}
+            >
+              {verifiedOnly ? "✓ Trusted Sellers" : "Trusted Sellers"}
             </button>
           </div>
         </div>
