@@ -14,6 +14,7 @@ import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Sell = () => {
   const [images, setImages] = useState<string[]>([]);
@@ -29,12 +30,12 @@ const Sell = () => {
   const [originalPrice, setOriginalPrice] = useState('');
   const [location, setLocation] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [submissionStatus, setSubmissionStatus] = useState<"idle" | "success" | "error">("idle");
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [isVisible, setIsVisible] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const formRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, token } = useAuth();
-  
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Removed in favor of dedicated My Listings page
@@ -74,27 +75,30 @@ const Sell = () => {
     };
   }, [images]);
 
+  // add files helper (applies max limit and sets previews)
+  function addFiles(newFiles: File[]) {
+    if (!Array.isArray(newFiles) || newFiles.length === 0) return;
+    const max = 8;
+    setFiles((prevFiles) => {
+      const allowed = newFiles.slice(0, Math.max(0, max - prevFiles.length));
+      return [...prevFiles, ...allowed];
+    });
+    setImages((prev) => {
+      const allowed = newFiles.slice(0, Math.max(0, max - prev.length));
+      const previews = allowed.map((f) => URL.createObjectURL(f));
+      return [...prev, ...previews];
+    });
+  }
+
   // handle file input change -> create previews and store File objects
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>): void {
     const inputFiles = Array.from(event.target.files || []);
     if (inputFiles.length === 0) return;
-
-    // limit total images to 8
-    const max = 8;
-    setFiles((prevFiles) => {
-      const allowed = inputFiles.slice(0, Math.max(0, max - prevFiles.length));
-      return [...prevFiles, ...allowed];
-    });
-
-    setImages((prev) => {
-      const allowed = inputFiles.slice(0, Math.max(0, max - prev.length));
-      const previews = allowed.map((f) => URL.createObjectURL(f));
-      return [...prev, ...previews];
-    });
-
+    addFiles(inputFiles);
     // reset input so same file can be re-selected if needed
     if (event.target) (event.target as HTMLInputElement).value = '';
   }
+  // Seller verification gating has been removed; trust is built via post-purchase feedback now.
 
   
 
@@ -166,14 +170,14 @@ const Sell = () => {
         return;
       }
       const json = text ? JSON.parse(text) : {};
-      alert('Product created id: ' + (json.id || 'unknown'));
+      toast.success('Item listed successfully', { description: `ID: ${json.id || 'unknown'}` });
       // clear form
       setTitle(''); setPrice(''); setFiles([]); setImages([]);
       // navigate or update UI as needed
-      window.location.href = '/shop';
+      navigate('/shop');
     } catch (err) {
       console.error('submit error', err);
-      alert('Upload failed, saved locally.');
+      toast.error('Listing failed, saved locally for now');
       const existing = JSON.parse(localStorage.getItem('listings') || '[]');
       localStorage.setItem('listings', JSON.stringify([{ id: Date.now().toString(), title, price, images }, ...existing]));
     } finally {
@@ -199,7 +203,7 @@ const Sell = () => {
             </div>
             {token && (
               <div className="pt-1">
-                <Button asChild variant="outline" className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+                <Button asChild variant="outline" className="hover:bg-[hsl(var(--thrift-green))]/10">
                   <Link to="/my-listings">My Listings</Link>
                 </Button>
               </div>
@@ -219,6 +223,7 @@ const Sell = () => {
                 isVisible && "opacity-100"
               )}
             >
+              {/* Pre-listing verification notice removed: all users may list items. */}
               {/* Submission Status */}
               {submissionStatus === "success" && (
                 <div className="bg-thrift-green/10 text-thrift-green p-4 rounded-lg animate-in fade-in duration-500">
@@ -252,9 +257,25 @@ const Sell = () => {
                       </button>
                     </div>
                   ))}
-                  <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                  <label
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (!isDragging) setIsDragging(true); }}
+                    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                    onDrop={(e) => {
+                      e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+                      const dt = e.dataTransfer;
+                      if (!dt) return;
+                      const dropped = Array.from(dt.files || []).filter(f => f.type.startsWith('image/'));
+                      addFiles(dropped);
+                    }}
+                    className={cn(
+                      "flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
+                      isDragging ? "border-thrift-green bg-thrift-green/5" : "border-muted-foreground/25 hover:border-primary"
+                    )}
+                    title="Click or drag & drop images"
+                  >
                     <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">Upload Images</span>
+                    <span className="text-sm text-muted-foreground">Click or drag & drop</span>
                     <input
                       type="file"
                       multiple
@@ -269,7 +290,7 @@ const Sell = () => {
                   <p className="text-sm text-destructive">{errors.images}</p>
                 )}
                 <p className="text-sm text-muted-foreground">
-                  Add up to 8 photos. Include different angles and close-ups of any details or flaws.
+                  Add up to 8 photos. Drag & drop supported. Include different angles and close-ups of any details or flaws.
                 </p>
               </div>
 

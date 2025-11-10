@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function MyListings() {
   const { token, user } = useAuth();
@@ -28,6 +29,8 @@ export default function MyListings() {
     condition: "",
     location: "",
   });
+  const [newImages, setNewImages] = useState<FileList | null>(null);
+  const [toDeleteImages, setToDeleteImages] = useState<string[]>([]);
 
   const load = async () => {
     if (!token) return;
@@ -91,6 +94,8 @@ export default function MyListings() {
       condition: p.productCondition || "",
       location: p.location || "",
     });
+    setNewImages(null);
+    setToDeleteImages([]);
     setEditOpen(true);
   };
 
@@ -98,24 +103,25 @@ export default function MyListings() {
     if (!token || !editItem) return;
     setEditSaving(true);
     try {
-      const payload: any = {
-        title: editFields.title,
-        price: Number(editFields.price) || 0,
-        brand: editFields.brand || null,
-        size: editFields.size || null,
-        productCondition: editFields.condition || null,
-        location: editFields.location || null,
-      };
+      const form = new FormData();
+      form.append("title", editFields.title);
+      form.append("price", String(Number(editFields.price) || 0));
+      if (editFields.brand) form.append("brand", editFields.brand);
+      if (editFields.size) form.append("size", editFields.size);
+      if (editFields.condition) form.append("productCondition", editFields.condition);
+      if (editFields.location) form.append("location", editFields.location);
+      if (toDeleteImages.length > 0) form.append("deleteImages", JSON.stringify(toDeleteImages));
+      if (newImages && newImages.length > 0) {
+        Array.from(newImages).forEach(f => form.append("images", f));
+      }
       const res = await fetch(`${apiBase}/api/products/${editItem.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...(headers as any) },
-        body: JSON.stringify(payload),
+        headers: { ...(headers as any) },
+        body: form,
       });
       if (!res.ok) throw new Error(await res.text());
-      setItems(prev => prev.map(it => String(it.id) === String(editItem.id)
-        ? { ...it, ...payload }
-        : it
-      ));
+      // Reload this item list to refresh images and fields
+      await load();
       setEditOpen(false);
     } catch (e: any) {
       alert(e?.message || "Failed to update");
@@ -195,8 +201,7 @@ export default function MyListings() {
                     >
                       <td className="px-3 py-3 w-24">
                         {p.image ? (
-                          // eslint-disable-next-line jsx-a11y/img-redundant-alt
-                          <img src={p.image} alt={p.title || 'image'} className="w-20 h-14 object-cover rounded" />
+                          <img src={p.image} alt={p.title ? `${p.title}` : 'Listing image'} className="w-20 h-14 object-cover rounded" />
                         ) : (
                           <div className="w-20 h-14 bg-muted grid place-items-center text-xs text-muted-foreground rounded">No image</div>
                         )}
@@ -271,6 +276,34 @@ export default function MyListings() {
               <label className="text-sm font-medium mb-2 block">Location</label>
               <Input value={editFields.location} onChange={(e) => setEditFields(f => ({ ...f, location: e.target.value }))} />
             </div>
+            {/* Images manager */}
+            {editItem && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium mb-1 block">Images</label>
+                <div className="flex flex-wrap gap-2">
+                  {(Array.isArray(editItem.images) ? editItem.images : []).map((url: string) => (
+                    <div key={url} className="relative group">
+                      <img src={url} alt="" className="w-20 h-20 object-cover rounded border" />
+                      <button
+                        type="button"
+                        className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full px-2 py-0.5 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); setToDeleteImages(prev => prev.includes(url) ? prev : [...prev, url]); }}
+                        title="Remove image"
+                      >✕</button>
+                      {toDeleteImages.includes(url) && (
+                        <div className="absolute inset-0 bg-black/40 grid place-items-center text-white text-xs rounded">Will remove</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-muted-foreground">Click ✕ to mark for removal. Changes apply after Save.</div>
+                <div className="pt-2">
+                  <label className="text-sm font-medium mb-2 block">Add images</label>
+                  <input type="file" accept="image/*" multiple onChange={(e) => setNewImages(e.target.files)} />
+                  <div className="text-xs text-muted-foreground mt-1">You can add more images (up to 8 total). First added may become the cover if none exists.</div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>

@@ -22,6 +22,7 @@ interface ProductCardProps {
   location: string;
   className?: string;
   status?: string;
+  isVerifiedSeller?: boolean;
 }
 
 export const ProductCard = ({
@@ -38,6 +39,7 @@ export const ProductCard = ({
   location,
   className,
   status,
+  isVerifiedSeller = false,
 }: ProductCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [liked, setLiked] = useState(isLiked);
@@ -230,7 +232,9 @@ export const ProductCard = ({
       <CardContent className="p-4">
         {/* Brand & Seller */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-thrift-earth">{brand}</span>
+          <span className="text-sm font-semibold italic text-foreground/90 tracking-wide">
+            {brand || '\u00A0'}
+          </span>
           <span className="text-xs text-muted-foreground">{location}</span>
         </div>
 
@@ -244,19 +248,33 @@ export const ProductCard = ({
           <Badge variant="outline" className="text-xs">
             Size {size}
           </Badge>
-          <span className="text-xs text-muted-foreground">by {seller}</span>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            by {seller}
+            {isVerifiedSeller && (
+              <span title="Verified seller" className="inline-flex items-center gap-1 rounded-full bg-thrift-green text-white px-1.5 py-0.5 text-[10px] font-semibold">
+                ✓ <span className="hidden sm:inline">Verified</span>
+              </span>
+            )}
+          </span>
         </div>
 
-        {/* Price */}
+        {/* Price & Discount */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-thrift-green">
               NPR {price.toLocaleString()}
             </span>
             {originalPrice && (
-              <span className="text-sm text-muted-foreground line-through">
-                NPR {originalPrice.toLocaleString()}
-              </span>
+              <>
+                <span className="text-sm text-muted-foreground line-through">
+                  NPR {originalPrice.toLocaleString()}
+                </span>
+                {originalPrice > price && discountPercentage > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-thrift-green text-white text-[10px] font-semibold px-2 py-0.5">
+                    -{discountPercentage}%
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>

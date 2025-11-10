@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
 
 // Middleware: require admin
 async function requireAdmin(req, res, next) {
@@ -142,7 +146,12 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
   try {
     await conn.beginTransaction();
     if (status) {
+      // fetch current for audit
+      const [[cur]] = await conn.query('SELECT status FROM orders WHERE id = ?', [id]);
       await conn.query('UPDATE orders SET status = ? WHERE id = ?', [String(status), id]);
+      try {
+        await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, req.adminId || null, 'status', cur?.status || null, String(status)]);
+      } catch {}
       if (String(status) === 'cancelled') {
         const [items] = await conn.query('SELECT product_id FROM order_items WHERE order_id = ?', [id]);
         const prodIds = (Array.isArray(items) ? items.map(r => Number(r.product_id)).filter(Boolean) : []);
@@ -153,7 +162,11 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
       }
     }
     if (payment_status) {
+      const [[cur]] = await conn.query('SELECT payment_status FROM orders WHERE id = ?', [id]);
       await conn.query('UPDATE orders SET payment_status = ? WHERE id = ?', [String(payment_status), id]);
+      try {
+        await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, req.adminId || null, 'payment_status', cur?.payment_status || null, String(payment_status)]);
+      } catch {}
     }
     await conn.commit();
     const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -164,6 +177,18 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Failed to update order' });
   } finally {
     conn.release();
+  }
+});
+
+// Fetch order audit log
+router.get('/orders/:id/audit', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid id' });
+  try {
+    const [rows] = await pool.query('SELECT id, field, old_value, new_value, actor_id, created_at FROM order_audit_log WHERE order_id = ? ORDER BY id DESC', [id]);
+    res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch audit log' });
   }
 });
 
@@ -208,5 +233,98 @@ router.get('/analytics/sales', requireAdmin, async (_req, res) => {
     });
   } catch (e) {
     res.status(500).json({ message: 'Analytics failed' });
+  }
+});
+
+// --- Bulk product import (CSV) ---
+// Accepts multipart/form-data with field 'file'. CSV headers supported:
+// title,price,originalPrice,brand,category,size,productCondition,location,imageUrl
+// imageUrl may be a direct URL; multiple image URLs can be pipe-separated (|)
+// Example row:
+// Vintage Denim Jacket,2500,4000,Levis,women,M,excellent,Kathmandu,https://example.com/a.jpg|https://example.com/b.jpg
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } }); // 2MB CSV max
+
+function parseCsv(buf) {
+  const text = buf.toString('utf8');
+  // Normalize line endings
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim().length > 0);
+  if (lines.length === 0) return [];
+  const header = lines[0].split(',').map(h => h.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const raw = lines[i];
+    const cols = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let j = 0; j < raw.length; j++) {
+      const ch = raw[j];
+      if (ch === '"') {
+        if (inQuotes && raw[j+1] === '"') { // escaped quote
+          cur += '"'; j++; continue;
+        }
+        inQuotes = !inQuotes; continue;
+      }
+      if (ch === ',' && !inQuotes) { cols.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    cols.push(cur);
+    while (cols.length < header.length) cols.push('');
+    const obj = {};
+    header.forEach((h, idx) => { obj[h] = (cols[idx] || '').trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+router.post('/products/bulk', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'CSV file (field "file") required' });
+    const rows = parseCsv(req.file.buffer);
+    if (!rows.length) return res.status(400).json({ message: 'No data rows parsed' });
+    const conn = await pool.getConnection();
+    const inserted = [];
+    try {
+      await conn.beginTransaction();
+      for (const r of rows) {
+        const title = r.title || r.Title || '';
+        const price = Number(r.price || r.Price || 0) || 0;
+        if (!title || price <= 0) continue; // basic validation
+        const originalPrice = r.originalPrice ? Number(r.originalPrice) : (r.OriginalPrice ? Number(r.OriginalPrice) : null);
+        const brand = r.brand || r.Brand || null;
+        const category = r.category || r.Category || null;
+        const size = r.size || r.Size || null;
+        const productCondition = r.productCondition || r.condition || r.Condition || null;
+        const location = r.location || r.Location || null;
+        const imageField = r.imageUrl || r.images || r.ImageUrl || '';
+        const imageUrls = imageField ? imageField.split('|').map(s => s.trim()).filter(Boolean) : [];
+        // For bulk import we attribute products to admin user (req.adminId)
+        const sellerRow = await conn.query('SELECT name, phone FROM users WHERE id = ? LIMIT 1', [req.adminId]);
+        const sellerName = (Array.isArray(sellerRow[0]) && sellerRow[0][0] && sellerRow[0][0].name) ? sellerRow[0][0].name : 'Admin';
+        const sellerPhone = (Array.isArray(sellerRow[0]) && sellerRow[0][0] && sellerRow[0][0].phone) ? sellerRow[0][0].phone : null;
+        const [ins] = await conn.query(
+          `INSERT INTO products (title, price, originalPrice, brand, category, size, productCondition, seller, phone, location, image, created_at, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
+          [title, price, originalPrice, brand, category, size, productCondition, sellerName, sellerPhone, location, imageUrls[0] || null, req.adminId]
+        );
+        const pid = ins.insertId;
+        if (imageUrls.length > 0) {
+          const placeholders = imageUrls.map(() => '(?, ?)').join(',');
+            const params = imageUrls.map(u => [pid, u]).flat();
+          await conn.query(`INSERT INTO product_images (product_id, image_url) VALUES ${placeholders}`, params);
+        }
+        inserted.push(pid);
+      }
+      await conn.commit();
+      res.status(201).json({ insertedCount: inserted.length, ids: inserted });
+    } catch (e) {
+      try { await conn.rollback(); } catch {}
+      console.error('bulk import error:', e);
+      res.status(500).json({ message: 'Bulk import failed' });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    res.status(500).json({ message: 'Bulk import internal failure' });
   }
 });

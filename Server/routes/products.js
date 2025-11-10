@@ -97,16 +97,21 @@ async function requireOwner(req, res, productId) {
 // GET /api/products - list products with images (compatible with older MySQL/MariaDB)
 router.get('/', async (req, res) => {
   try {
-    // Fetch products first (include user_id as sellerId for clarity)
+    const { verified } = req.query;
+    const verifiedOnly = String(verified || '').toLowerCase() === 'true';
+    // Fetch products with seller verification flag joined from users
     const [products] = await pool.query(
-      'SELECT * FROM products ORDER BY created_at DESC'
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       ORDER BY p.created_at DESC`
     );
     if (!Array.isArray(products) || products.length === 0) {
       return res.json([]);
     }
-
-    // Fetch images in one query and group them by product_id
-    const ids = products.map((p) => p.id);
+    // Optionally filter by verified sellers
+    const filtered = verifiedOnly ? products.filter(p => Number(p.is_verified_seller) === 1) : products;
+    const ids = filtered.map(p => p.id);
+    if (ids.length === 0) return res.json([]);
     const placeholders = ids.map(() => '?').join(',');
     const [imgRows] = await pool.query(
       `SELECT product_id, image_url FROM product_images WHERE product_id IN (${placeholders})`,
@@ -119,8 +124,7 @@ router.get('/', async (req, res) => {
         imgMap.get(r.product_id).push(r.image_url);
       }
     }
-
-    const out = products.map((p) => ({ ...p, sellerId: p.user_id || null, images: imgMap.get(p.id) || [] }));
+    const out = filtered.map(p => ({ ...p, sellerId: p.user_id || null, is_verified_seller: Number(p.is_verified_seller) === 1, images: imgMap.get(p.id) || [] }));
     return res.json(out);
   } catch (err) {
     console.error('products GET error:', err);
@@ -144,15 +148,16 @@ router.get('/mine', async (req, res) => {
     }
     const userId = Number(payload.userId || payload.id) || null;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
     const [products] = await pool.query(
-      'SELECT * FROM products WHERE user_id = ? ORDER BY created_at DESC',
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.user_id = ? ORDER BY p.created_at DESC`,
       [userId]
     );
     if (!Array.isArray(products) || products.length === 0) {
       return res.json([]);
     }
-    const ids = products.map((p) => p.id);
+    const ids = products.map(p => p.id);
     const placeholders = ids.map(() => '?').join(',');
     const [imgRows] = await pool.query(
       `SELECT product_id, image_url FROM product_images WHERE product_id IN (${placeholders})`,
@@ -165,7 +170,7 @@ router.get('/mine', async (req, res) => {
         imgMap.get(r.product_id).push(r.image_url);
       }
     }
-    const out = products.map((p) => ({ ...p, sellerId: p.user_id || null, images: imgMap.get(p.id) || [] }));
+    const out = products.map(p => ({ ...p, sellerId: p.user_id || null, is_verified_seller: Number(p.is_verified_seller) === 1, images: imgMap.get(p.id) || [] }));
     return res.json(out);
   } catch (err) {
     console.error('products MINE GET error:', err);
@@ -178,12 +183,17 @@ router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: 'Invalid id' });
-    const [products] = await pool.query('SELECT * FROM products WHERE id = ?', [id]);
+    const [products] = await pool.query(
+      `SELECT p.*, u.is_verified_seller FROM products p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.id = ? LIMIT 1`,
+      [id]
+    );
     if (!Array.isArray(products) || products.length === 0) return res.status(404).json({ message: 'Product not found' });
     const product = products[0];
     const [imgs] = await pool.query('SELECT image_url FROM product_images WHERE product_id = ?', [id]);
     const images = Array.isArray(imgs) ? imgs.map(r => r.image_url) : [];
-    res.json({ ...product, sellerId: product.user_id || null, images });
+    res.json({ ...product, sellerId: product.user_id || null, is_verified_seller: Number(product.is_verified_seller) === 1, images });
   } catch (err) {
     console.error('product detail GET error:', err);
     res.status(500).json({ message: 'Failed to fetch product' });
@@ -344,6 +354,22 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
     const replaceImages = String(req.body.replaceImages || '').toLowerCase();
     const shouldReplace = replaceImages === 'true' || replaceImages === '1';
 
+    // Optional targeted deletions (without full replace)
+    let toDelete = [];
+    if (!shouldReplace && Object.prototype.hasOwnProperty.call(req.body, 'deleteImages')) {
+      try {
+        const raw = req.body.deleteImages;
+        let list = [];
+        if (Array.isArray(raw)) list = raw;
+        else if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (trimmed.startsWith('[')) list = JSON.parse(trimmed);
+          else list = trimmed.split(',');
+        }
+        toDelete = (list || []).map(s => String(s).trim()).filter(Boolean);
+      } catch {}
+    }
+
     if (shouldReplace) {
       // delete existing image files and rows
       const [oldImgs] = await conn.query('SELECT image_url FROM product_images WHERE product_id = ?', [id]);
@@ -359,6 +385,29 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
       await conn.query('DELETE FROM product_images WHERE product_id = ?', [id]);
       // also clear main image
       await conn.query('UPDATE products SET image = NULL WHERE id = ?', [id]);
+    } else if (toDelete.length > 0) {
+      // delete specific images
+      const placeholders = toDelete.map(() => '?').join(',');
+      // fetch existing that match for file removal
+      const [rows] = await conn.query(
+        `SELECT image_url FROM product_images WHERE product_id = ? AND image_url IN (${placeholders})`,
+        [id, ...toDelete]
+      );
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          const fname = filenameFromUrl(r.image_url);
+          if (fname) {
+            const fpath = path.join(UPLOAD_DIR, fname);
+            try { if (fs.existsSync(fpath)) fs.unlinkSync(fpath); } catch {}
+          }
+        }
+      }
+      await conn.query(`DELETE FROM product_images WHERE product_id = ? AND image_url IN (${placeholders})`, [id, ...toDelete]);
+      // if main image was removed, null it for now; we'll repoint after additions
+      const [[prow]] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
+      if (prow && prow.image && toDelete.includes(prow.image)) {
+        await conn.query('UPDATE products SET image = NULL WHERE id = ?', [id]);
+      }
     }
 
     if (files.length > 0) {
@@ -375,6 +424,15 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
         const [prow] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
         const cur = Array.isArray(prow) && prow[0] ? prow[0].image : null;
         if (!cur) await conn.query('UPDATE products SET image = ? WHERE id = ?', [firstUrl, id]);
+      }
+    }
+
+    // If no main image set (due to deletions and no additions), pick first remaining image
+    const [[pimg]] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
+    if (!pimg?.image) {
+      const [[first]] = await conn.query('SELECT image_url FROM product_images WHERE product_id = ? ORDER BY id ASC LIMIT 1', [id]);
+      if (first && first.image_url) {
+        await conn.query('UPDATE products SET image = ? WHERE id = ?', [first.image_url, id]);
       }
     }
 

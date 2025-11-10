@@ -3,7 +3,43 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+// Recharts moved to lazy-loaded chart component for code-splitting
+// import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import React, { Suspense } from 'react';
+const AdminSalesChart = React.lazy(() => import('./AdminSalesChart'));
+// Lightweight inline component to upload CSV to bulk import endpoint
+function BulkCsvUploader({ apiBase, headers, onDone }: { apiBase: string; headers: any; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const onUpload = async () => {
+    if (!file) return;
+    setBusy(true); setResult(null); setError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${apiBase}/api/admin/products/bulk`, { method: 'POST', headers: { ...(headers||{}) }, body: form as any });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Upload failed');
+      setResult(`Imported ${data.insertedCount || 0} product(s).`);
+      setFile(null);
+      onDone();
+    } catch (e: any) {
+      setError(e?.message || 'Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+      <input type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+      <Button size="sm" onClick={onUpload} disabled={!file || busy}>{busy ? 'Uploading…' : 'Upload CSV'}</Button>
+      {result && <span className="text-xs text-green-600">{result}</span>}
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
+  );
+}
 
 
 type Summary = { users: number; products: number; orders: number; sales: number };
@@ -21,12 +57,15 @@ type Analytics = {
 export default function AdminPage() {
   const { token } = useAuth();
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const [tab, setTab] = useState<'dashboard'|'orders'|'products'|'users'>('dashboard');
+  const [tab, setTab] = useState<'dashboard'|'orders'|'products'|'users'|'payments'>('dashboard');
+  const [ledger, setLedger] = useState<any[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  // Legacy seller verification removed; trust now derives from post-purchase feedback.
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -48,10 +87,24 @@ export default function AdminPage() {
   const loadAnalytics = async () => {
     setAnalyticsLoading(true);
     try {
+      // Simple sessionStorage cache (2 min TTL)
+      const key = 'admin_sales_cache_v1';
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          if (cached && cached.ts && Date.now() - cached.ts < 2 * 60 * 1000) {
+            setAnalytics(cached.data);
+            setAnalyticsLoading(false);
+            return;
+          }
+        } catch {}
+      }
       const res = await fetch(`${apiBase}/api/admin/analytics/sales`, { headers });
       if (!res.ok) return;
       const data: Analytics = await res.json();
       setAnalytics(data);
+      try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
     } finally {
       setAnalyticsLoading(false);
     }
@@ -63,6 +116,8 @@ export default function AdminPage() {
       const res = await fetch(`${apiBase}/api/admin/orders`, { headers });
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
+      // Refresh ledger so per-order payment snapshot is available
+      try { await loadLedger(); } catch {}
     } finally { setLoading(false); }
   };
   const loadProducts = async () => {
@@ -82,11 +137,23 @@ export default function AdminPage() {
     } finally { setLoading(false); }
   };
 
+  const loadLedger = async () => {
+    setLedgerLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/payments/ledger`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLedger(Array.isArray(data) ? data : []);
+    } finally { setLedgerLoading(false); }
+  };
+
   useEffect(() => {
     if (tab === 'orders') loadOrders();
     if (tab === 'products') loadProducts();
     if (tab === 'users') loadUsers();
     if (tab === 'dashboard') loadAnalytics();
+    if (tab === 'payments') loadLedger();
+  // verification tab removed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -114,6 +181,8 @@ export default function AdminPage() {
     await loadUsers();
   };
 
+  // remove legacy verification handlers
+
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold mb-6">Admin</h1>
@@ -124,6 +193,8 @@ export default function AdminPage() {
             <button className={`text-left px-4 py-3 w-full border-b md:border-b-0 hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='orders' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('orders')}>Orders</button>
             <button className={`text-left px-4 py-3 w-full border-b md:border-b-0 hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='products' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('products')}>Products</button>
             <button className={`text-left px-4 py-3 w-full hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='users' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('users')}>Users</button>
+            <button className={`text-left px-4 py-3 w-full hover:bg-[hsl(var(--thrift-green))]/10 ${tab==='payments' ? 'bg-[hsl(var(--thrift-green))]/10 text-[hsl(var(--thrift-green))] font-medium' : ''}`} onClick={() => setTab('payments')}>Payments</button>
+            {/* Seller Verification tab removed */}
           </nav>
         </aside>
         <div className="space-y-6">
@@ -143,15 +214,9 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent>
                   {analytics?.salesLast30Days && analytics.salesLast30Days.length > 0 ? (
-                    <ChartContainer config={chartConfig} className="w-full">
-                      <LineChart data={analytics.salesLast30Days} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tickMargin={8} minTickGap={24} tickLine={false} axisLine={false} />
-                        <YAxis tickFormatter={(v) => Number(v).toLocaleString()} width={64} tickLine={false} axisLine={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ChartContainer>
+                    <Suspense fallback={<div className="text-sm text-muted-foreground">Loading chart…</div>}>
+                      <AdminSalesChart data={analytics.salesLast30Days} />
+                    </Suspense>
                   ) : (
                     <div className="text-sm text-muted-foreground">No sales data yet.</div>
                   )}
@@ -165,7 +230,7 @@ export default function AdminPage() {
               <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Orders</CardTitle><Button variant="ghost" onClick={loadOrders}>{loading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
               <CardContent className="space-y-3">
                 {orders.map(o => (
-                  <div key={o.id} className="border rounded p-3">
+                  <div key={o.id} className="border rounded p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">Order #{o.id}</div>
@@ -184,7 +249,20 @@ export default function AdminPage() {
                         </select>
                       </div>
                     </div>
-                    <div className="mt-2 text-sm text-muted-foreground">{(o.items||[]).length} item(s)</div>
+                    <div className="text-sm text-muted-foreground">{(o.items||[]).length} item(s)</div>
+                    {(() => {
+                      const related = ledger.filter(l => Number(l.order_id) === Number(o.id));
+                      if (related.length === 0) return <div className="text-xs text-muted-foreground">No ledger entries.</div>;
+                      const latest = related[0];
+                      return (
+                        <div className="text-xs flex flex-wrap gap-3 items-center">
+                          <span className="inline-flex items-center rounded-full bg-thrift-green/10 px-2 py-0.5 text-[10px] font-medium text-thrift-green">Ledger #{latest.id}</span>
+                          <span className="text-muted-foreground">{latest.method}{latest.gateway_txn_id ? ` • ${latest.gateway_txn_id}` : ''}</span>
+                          <span className={latest.status === 'verified' ? 'text-green-600' : 'text-yellow-600'}>{latest.status}</span>
+                          {latest.amount != null && <span>Amt: {Number(latest.amount).toLocaleString()} {latest.currency}</span>}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </CardContent>
@@ -193,7 +271,14 @@ export default function AdminPage() {
 
           {tab === 'products' && (
             <Card className="border-none shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Products</CardTitle><Button variant="ghost" onClick={loadProducts}>{loading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
+              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-4">
+                  <CardTitle>Products</CardTitle>
+                  <Button variant="ghost" onClick={loadProducts}>{loading ? 'Loading...' : 'Refresh'}</Button>
+                </div>
+                {/* Bulk CSV upload */}
+                <BulkCsvUploader apiBase={apiBase} headers={headers} onDone={loadProducts} />
+              </CardHeader>
               <CardContent className="space-y-3">
                 {products.map(p => (
                   <div key={p.id} className="border rounded p-3 flex items-center justify-between">
@@ -239,6 +324,36 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           )}
+          {tab === 'payments' && (
+            <Card className="border-none shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Payment Ledger</CardTitle><Button variant="ghost" onClick={loadLedger}>{ledgerLoading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
+              <CardContent>
+                {ledger.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No ledger entries yet.</div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {ledger.map(entry => (
+                      <Card key={entry.id} className="border rounded shadow-sm">
+                        <CardHeader className="py-3 pb-1">
+                          <CardTitle className="text-sm font-medium flex items-center justify-between">
+                            <span>#{entry.id} • {entry.method}</span>
+                            <span className={`text-xs ${entry.status === 'verified' ? 'text-green-600' : 'text-yellow-600'}`}>{entry.status}</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs space-y-1">
+                          <div>Order: {entry.order_id || '—'}</div>
+                          <div>Txn: {entry.gateway_txn_id || '—'}</div>
+                          <div>Amount: {entry.amount != null ? Number(entry.amount).toLocaleString() : '—'} {entry.currency}</div>
+                          <div className="text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {/* Verification panel removed */}
         </div>
       </div>
     </div>

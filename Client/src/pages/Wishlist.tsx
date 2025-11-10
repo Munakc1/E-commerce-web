@@ -267,7 +267,7 @@ export default function Wishlist() {
                   <ShoppingCart className="w-4 h-4" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="hover:bg-[hsl(var(--thrift-green))]/10">
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>

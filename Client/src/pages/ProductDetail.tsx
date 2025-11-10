@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { ProductCard } from "@/components/product/ProductCard";
 import { toast } from "sonner";
 
 type Product = {
@@ -13,6 +14,7 @@ type Product = {
   title: string;
   price: number;
   originalPrice?: number | null;
+  category?: string;
   condition?: string;
   size?: string;
   brand?: string;
@@ -23,6 +25,8 @@ type Product = {
   image?: string;
   location?: string;
   status?: string;
+  is_verified_seller?: boolean;
+  sellerId?: number | null;
 };
 
 export default function ProductDetail() {
@@ -40,6 +44,9 @@ export default function ProductDetail() {
   const [contactMessage, setContactMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [similar, setSimilar] = useState<Product[]>([]);
+  const [trustLoading, setTrustLoading] = useState(false);
+  const [trustSummary, setTrustSummary] = useState<{ percentage: number; total: number; avgRating: number | null } | null>(null);
 
   // Add to cart helper
   const addToCart = () => {
@@ -91,6 +98,57 @@ export default function ProductDetail() {
     load();
   }, [id, apiBase]);
 
+  // Load seller trust summary (peer feedback) once product loaded and has sellerId
+  useEffect(() => {
+    const fetchTrust = async () => {
+      if (!product || !product.sellerId) return;
+      setTrustLoading(true);
+      try {
+        const res = await fetch(`${apiBase}/api/sellers/${product.sellerId}/feedback/summary`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrustSummary({ percentage: Number(data.percentage || 0), total: Number(data.total || 0), avgRating: data.avgRating != null ? Number(data.avgRating) : null });
+        }
+      } catch {
+        setTrustSummary(null);
+      } finally {
+        setTrustLoading(false);
+      }
+    };
+    fetchTrust();
+  }, [product, apiBase]);
+
+  // Load similar items (same category if available; otherwise price-nearby), exclude current
+  useEffect(() => {
+    const loadSimilar = async () => {
+      if (!product) return;
+      try {
+        const res = await fetch(`${apiBase}/api/products`);
+        if (!res.ok) return;
+        const all = await res.json();
+        const pid = String(product.id);
+        const basePrice = Number(product.price || 0);
+        const hasCategory = !!(product as any).category;
+        const norm = (v: any) => String(v || '').trim().toLowerCase();
+        const cat = norm((product as any).category);
+        const within = (p: any) => {
+          const price = Number(p.price || 0);
+          if (!basePrice) return true;
+          const low = basePrice * 0.7;
+          const high = basePrice * 1.3;
+          return price >= low && price <= high;
+        };
+        const candidates: Product[] = (Array.isArray(all) ? all : [])
+          .filter((p: any) => String(p.id) !== pid)
+          .filter((p: any) => (hasCategory ? norm(p.category || p.Category) === cat : true))
+          .filter(within)
+          .slice(0, 6);
+        setSimilar(candidates);
+      } catch {}
+    };
+    loadSimilar();
+  }, [product, apiBase]);
+
   // Prefill contact info
   useEffect(() => {
     setContactName(user?.name || "");
@@ -131,13 +189,15 @@ export default function ProductDetail() {
       </Button>
 
       <div className="grid md:grid-cols-2 gap-12">
-        {/* Product Image */}
+        {/* Product Image (fixed aspect ratio to prevent oversized rendering) */}
         <div>
-          <img
-            src={mainImage}
-            alt={product.title}
-            className="w-full rounded-lg border"
-          />
+          <div className="relative w-full overflow-hidden rounded-lg border bg-black/5 aspect-[3/4]">
+            <img
+              src={mainImage}
+              alt={product.title}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </div>
           {Array.isArray(product.images) && product.images.length > 1 && (
             <div className="mt-4 grid grid-cols-4 gap-2">
               {product.images.slice(0, 8).map((img, idx) => (
@@ -168,9 +228,16 @@ export default function ProductDetail() {
               NPR {Number(product.price || 0).toLocaleString()}
             </span>
             {!!product.originalPrice && (
-              <span className="text-xl text-gray-400 line-through">
-                NPR {Number(product.originalPrice).toLocaleString()}
-              </span>
+              <>
+                <span className="text-xl text-gray-400 line-through">
+                  NPR {Number(product.originalPrice).toLocaleString()}
+                </span>
+                {Number(product.originalPrice) > Number(product.price || 0) && (
+                  <span className="inline-flex items-center rounded-full bg-thrift-green text-white text-xs font-semibold px-2 py-1">
+                    -{Math.max(0, Math.round(100 - (Number(product.price || 0) / Number(product.originalPrice)) * 100))}%
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -185,8 +252,20 @@ export default function ProductDetail() {
               <p><span className="font-semibold">Location:</span> {product.location}</p>
             )}
             {product.seller && (
-              <p className="select-none">
+              <p className="select-none flex items-center gap-2">
                 <span className="font-semibold">Seller:</span> {product.seller}
+                {/* Legacy verified badge deprecated; trust summary shown instead */}
+                {trustLoading && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">Loading trust…</span>
+                )}
+                {!trustLoading && trustSummary && trustSummary.total > 0 && (
+                  <span title="Buyer feedback summary" className="inline-flex items-center gap-1 rounded-full bg-thrift-green text-white px-2 py-0.5 text-[10px] font-semibold">
+                    {trustSummary.percentage}% as-described · {trustSummary.avgRating != null ? `★${trustSummary.avgRating.toFixed(1)}` : 'No rating'} ({trustSummary.total})
+                  </span>
+                )}
+                {!trustLoading && (!trustSummary || trustSummary.total === 0) && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600" title="No buyer feedback yet">No feedback yet</span>
+                )}
               </p>
             )}
             <p className="text-sm text-muted-foreground">
@@ -271,6 +350,46 @@ export default function ProductDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Similar Items */}
+      {similar.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-semibold mb-4">Similar items you might like</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {similar.map((p) => {
+              const images = Array.isArray(p.images)
+                ? p.images
+                : (typeof (p as any).images === 'string' && (p as any).images.startsWith('[')
+                    ? JSON.parse((p as any).images)
+                    : ((p as any).image ? [(p as any).image] : []));
+              const brand = (p as any).brand || '';
+              const size = (p as any).size || '';
+              const condition = (p as any).productCondition || (p as any).condition || 'Good';
+              const seller = (p as any).seller || '';
+              const location = (p as any).location || '';
+              const status = (p as any).status || '';
+              return (
+                <div key={String(p.id)} onClick={() => navigate(`/product/${p.id}`)} className="cursor-pointer">
+                  <ProductCard
+                    id={String(p.id)}
+                    title={p.title}
+                    price={Number(p.price || 0)}
+                    originalPrice={p.originalPrice != null ? Number(p.originalPrice) : undefined}
+                    brand={brand}
+                    size={size}
+                    condition={condition as any}
+                    images={Array.isArray(images) && images.length > 0 ? images : ["https://via.placeholder.com/300"]}
+                    seller={seller}
+                    location={location}
+                    status={status}
+                    isVerifiedSeller={Boolean((p as any).is_verified_seller)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

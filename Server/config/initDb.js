@@ -173,6 +173,91 @@ async function initDb() {
       CONSTRAINT fk_wishlist_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       CONSTRAINT fk_wishlist_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Minimal payment ledger for reconciliation demos
+    `CREATE TABLE IF NOT EXISTS payment_ledger (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NULL,
+      method VARCHAR(30) NOT NULL,
+      gateway_txn_id VARCHAR(150) NULL,
+      amount DECIMAL(12,2) NULL,
+      currency VARCHAR(10) DEFAULT 'NPR',
+      status VARCHAR(30) DEFAULT 'pending',
+      raw_payload JSON NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_order (order_id),
+      KEY idx_method (method),
+      CONSTRAINT fk_payment_ledger_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Order audit log (status & payment transitions)
+    `CREATE TABLE IF NOT EXISTS order_audit_log (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NOT NULL,
+      actor_id INT UNSIGNED NULL,
+      field VARCHAR(40) NOT NULL,
+      old_value VARCHAR(100) NULL,
+      new_value VARCHAR(100) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_order (order_id),
+      CONSTRAINT fk_order_audit_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      CONSTRAINT fk_order_audit_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Product reviews
+    `CREATE TABLE IF NOT EXISTS reviews (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      product_id INT UNSIGNED NOT NULL,
+      user_id INT UNSIGNED NULL,
+      rating TINYINT NOT NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_prod (product_id),
+      KEY idx_user (user_id),
+      CONSTRAINT fk_reviews_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      CONSTRAINT fk_reviews_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Seller verification applications
+    `CREATE TABLE IF NOT EXISTS seller_verifications (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      shop_name VARCHAR(120) NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+      documents JSON NULL, -- array of uploaded file paths / metadata
+      notes TEXT NULL, -- admin decision notes or rejection reason
+      decided_by INT UNSIGNED NULL,
+      decided_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_user (user_id),
+      KEY idx_status (status),
+      CONSTRAINT fk_seller_verifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_seller_verifications_decider FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    // Peer seller trust: feedback after purchase
+    `CREATE TABLE IF NOT EXISTS seller_feedback (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT UNSIGNED NOT NULL,
+      seller_id INT UNSIGNED NOT NULL,
+      buyer_id INT UNSIGNED NOT NULL,
+      as_described TINYINT(1) NOT NULL DEFAULT 1,
+      rating TINYINT NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_order_buyer_seller (order_id, buyer_id, seller_id),
+      KEY idx_seller (seller_id),
+      KEY idx_buyer (buyer_id),
+      CONSTRAINT fk_sf_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      CONSTRAINT fk_sf_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_sf_buyer FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
   ];
 
   for (const sql of statements) {
@@ -243,6 +328,9 @@ async function initDb() {
   await ensureColumn('products', 'category_id INT UNSIGNED NULL', 'category');
   // Minimal seller status support for listings: unsold | order_received | sold
   await ensureColumn('products', "status VARCHAR(30) NOT NULL DEFAULT 'unsold'", 'image');
+  // (Deprecated) Seller verification columns (kept for backward compatibility if present)
+  await ensureColumn('users', "is_verified_seller TINYINT(1) NOT NULL DEFAULT 0", 'role');
+  await ensureColumn('users', 'seller_tier VARCHAR(30) NULL', 'is_verified_seller');
   // Map orders to eSewa transaction UUID when initiating payment
   await ensureColumn('orders', 'esewa_transaction_uuid VARCHAR(100) NULL', 'payment_status');
   // Map orders to Khalti payment pidx for verification

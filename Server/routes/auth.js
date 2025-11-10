@@ -41,7 +41,7 @@ router.post("/signup", async (req, res) => {
 
     // Fetch created user (include role)
     const [urows] = await pool.execute(
-      "SELECT id, name, email, phone, role FROM users WHERE id = ?",
+      "SELECT id, name, email, phone, role, is_verified_seller, seller_tier FROM users WHERE id = ?",
       [result.insertId]
     );
 
@@ -56,7 +56,7 @@ router.post("/signup", async (req, res) => {
       success: true, 
       message: "Account created successfully",
       token,
-      user: { id: result.insertId, name: urows[0]?.name || name, email: urows[0]?.email || email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer' }
+  user: { id: result.insertId, name: urows[0]?.name || name, email: urows[0]?.email || email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null }
     });
 
   } catch (err) {
@@ -101,13 +101,13 @@ router.post("/signin", async (req, res) => {
     );
 
     // Return user with role
-    const [urows] = await pool.execute("SELECT id, name, email, phone, role FROM users WHERE id = ?", [user.id]);
+  const [urows] = await pool.execute("SELECT id, name, email, phone, role, is_verified_seller, seller_tier FROM users WHERE id = ?", [user.id]);
 
     res.json({ 
       success: true, 
       message: "Login successful", 
       token,
-      user: { id: urows[0]?.id || user.id, name: urows[0]?.name || user.name, email: urows[0]?.email || user.email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer' } 
+      user: { id: urows[0]?.id || user.id, name: urows[0]?.name || user.name, email: urows[0]?.email || user.email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null } 
     });
   } catch (err) {
     console.error("SignIn error:", err);

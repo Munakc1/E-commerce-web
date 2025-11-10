@@ -26,6 +26,7 @@ import PaymentFailure from "./pages/PaymentFailure";
 import { Toaster as AppToaster } from "@/components/ui/sonner";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminPage from "./pages/admin/Admin";
+import ApplyVerification from "./pages/ApplyVerification";
 
 const queryClient = new QueryClient();
 
@@ -72,8 +73,9 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* If you want these public, do NOT wrap with ProtectedRoute */}
+          
             <Route path="/sell" element={<Sell />} />
+            <Route path="/apply-verification" element={<ApplyVerification />} />
             <Route path="/donate" element={<Donate />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/success" element={<PaymentSuccess />} />

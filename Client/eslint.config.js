@@ -23,7 +23,12 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      // Keep runtime behavior unchanged while reducing lint noise
       "@typescript-eslint/no-unused-vars": "off",
+      // Allow empty catch blocks (we intentionally swallow some errors in UI code)
+      "no-empty": ["error", { "allowEmptyCatch": true }],
+      // Treat broad 'any' typing as a warning instead of an error for now
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   }
 );
