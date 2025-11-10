@@ -354,6 +354,22 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
     const replaceImages = String(req.body.replaceImages || '').toLowerCase();
     const shouldReplace = replaceImages === 'true' || replaceImages === '1';
 
+    // Optional targeted deletions (without full replace)
+    let toDelete = [];
+    if (!shouldReplace && Object.prototype.hasOwnProperty.call(req.body, 'deleteImages')) {
+      try {
+        const raw = req.body.deleteImages;
+        let list = [];
+        if (Array.isArray(raw)) list = raw;
+        else if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (trimmed.startsWith('[')) list = JSON.parse(trimmed);
+          else list = trimmed.split(',');
+        }
+        toDelete = (list || []).map(s => String(s).trim()).filter(Boolean);
+      } catch {}
+    }
+
     if (shouldReplace) {
       // delete existing image files and rows
       const [oldImgs] = await conn.query('SELECT image_url FROM product_images WHERE product_id = ?', [id]);
@@ -369,6 +385,29 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
       await conn.query('DELETE FROM product_images WHERE product_id = ?', [id]);
       // also clear main image
       await conn.query('UPDATE products SET image = NULL WHERE id = ?', [id]);
+    } else if (toDelete.length > 0) {
+      // delete specific images
+      const placeholders = toDelete.map(() => '?').join(',');
+      // fetch existing that match for file removal
+      const [rows] = await conn.query(
+        `SELECT image_url FROM product_images WHERE product_id = ? AND image_url IN (${placeholders})`,
+        [id, ...toDelete]
+      );
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          const fname = filenameFromUrl(r.image_url);
+          if (fname) {
+            const fpath = path.join(UPLOAD_DIR, fname);
+            try { if (fs.existsSync(fpath)) fs.unlinkSync(fpath); } catch {}
+          }
+        }
+      }
+      await conn.query(`DELETE FROM product_images WHERE product_id = ? AND image_url IN (${placeholders})`, [id, ...toDelete]);
+      // if main image was removed, null it for now; we'll repoint after additions
+      const [[prow]] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
+      if (prow && prow.image && toDelete.includes(prow.image)) {
+        await conn.query('UPDATE products SET image = NULL WHERE id = ?', [id]);
+      }
     }
 
     if (files.length > 0) {
@@ -385,6 +424,15 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
         const [prow] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
         const cur = Array.isArray(prow) && prow[0] ? prow[0].image : null;
         if (!cur) await conn.query('UPDATE products SET image = ? WHERE id = ?', [firstUrl, id]);
+      }
+    }
+
+    // If no main image set (due to deletions and no additions), pick first remaining image
+    const [[pimg]] = await conn.query('SELECT image FROM products WHERE id = ?', [id]);
+    if (!pimg?.image) {
+      const [[first]] = await conn.query('SELECT image_url FROM product_images WHERE product_id = ? ORDER BY id ASC LIMIT 1', [id]);
+      if (first && first.image_url) {
+        await conn.query('UPDATE products SET image = ? WHERE id = ?', [first.image_url, id]);
       }
     }
 

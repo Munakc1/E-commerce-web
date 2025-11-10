@@ -78,9 +78,10 @@ Note: If these accounts don’t exist in your DB yet, create them via Sign Up th
 - Checkout: COD, eSewa, Khalti; idempotent order creation
 - Admin: lazy‑loaded analytics chart with small session cache
 - Seller UX: toast feedback + drag & drop image upload (up to 8 images)
-- Seller verification: apply with documents, admin approval, verified badge, and Shop filter (verified sellers only); listing gated until verified
+- Seller Trust (Peer Feedback): buyers review sellers post‑purchase; trust badge on Product Detail; Shop filter label updated to “Trusted Sellers”. Legacy verification endpoints exist but the admin verification UI has been removed.
 - Payment ledger: minimal SQL table & generic verification endpoint
 - Order audit log: tracks status/payment transitions for traceability
+- Admin bulk import: upload CSV on Admin → Products to create many products at once
 
 ---
 
