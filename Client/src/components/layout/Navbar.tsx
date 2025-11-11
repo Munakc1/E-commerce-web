@@ -55,26 +55,22 @@ export const Navbar = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token, apiBase]);
 
-  // Cart count: initialize from localStorage and listen for updates
+  // Cart count: initialize only when authenticated; reset to 0 when logged out
   useEffect(() => {
-    const getCount = () => {
+    const compute = (): number => {
+      if (!isAuthenticated) return 0; // hide count when not logged in
       try {
         const cart = JSON.parse(localStorage.getItem('cart') || '[]');
         if (!Array.isArray(cart)) return 0;
         return cart.reduce((sum: number, item: any) => sum + (Number(item?.quantity ?? 1) || 1), 0);
-      } catch {
-        return 0;
-      }
+      } catch { return 0; }
     };
-    setCartCount(getCount());
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'cart') setCartCount(getCount());
-    };
+    setCartCount(compute());
+    const onStorage = (e: StorageEvent) => { if (e.key === 'cart') setCartCount(compute()); };
     const onCartUpdated = (e: Event) => {
       const ev = e as CustomEvent<{ count?: number }>;
-      if (typeof ev.detail?.count === 'number') setCartCount(ev.detail.count);
-      else setCartCount(getCount());
+      if (!isAuthenticated) { setCartCount(0); return; }
+      if (typeof ev.detail?.count === 'number') setCartCount(ev.detail.count); else setCartCount(compute());
     };
     window.addEventListener('storage', onStorage);
     window.addEventListener('cartUpdated', onCartUpdated as EventListener);
@@ -82,7 +78,7 @@ export const Navbar = () => {
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('cartUpdated', onCartUpdated as EventListener);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Real-time notifications via SSE
   useEffect(() => {
@@ -143,8 +139,11 @@ export const Navbar = () => {
     { href: "/about", label: "About" },
   ];
 
-  const resolveHref = (href: string) =>
-    isAuthenticated || publicAllowed.has(href) ? href : "/signup";
+  const resolveHref = (href: string) => {
+    if (isAuthenticated || publicAllowed.has(href)) return href;
+    const next = href === '/shop' ? '/shop' : href;
+    return `/signup?next=${encodeURIComponent(next)}`;
+  };
 
   const handleLogout = () => {
     logout();
@@ -281,7 +280,7 @@ export const Navbar = () => {
             <Button asChild variant="ghost" size="sm" className="relative hover:bg-[hsl(var(--thrift-green))]/10 hover:text-[hsl(var(--thrift-green))]">
               <Link to={resolveHref("/cart")}>
                 <ShoppingBag className="w-5 h-5" />
-                {cartCount > 0 && (
+                {isAuthenticated && cartCount > 0 && (
                   <Badge className="absolute -top-2 -right-2 w-5 h-5 p-0 bg-thrift-green text-[10px] leading-none rounded-full grid place-items-center">
                     {cartCount}
                   </Badge>
@@ -384,7 +383,7 @@ export const Navbar = () => {
                   <Link to={resolveHref("/cart")}>
                     <ShoppingBag className="w-5 h-5 mr-2" />
                     Cart
-                    {cartCount > 0 && (
+                    {isAuthenticated && cartCount > 0 && (
                       <Badge className="ml-2 w-5 h-5 p-0 bg-thrift-green text-[10px] leading-none rounded-full grid place-items-center">
                         {cartCount}
                       </Badge>

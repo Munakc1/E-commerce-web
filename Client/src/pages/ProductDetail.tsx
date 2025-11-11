@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -32,6 +32,7 @@ type Product = {
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
   const { user, token } = useAuth();
 
@@ -51,6 +52,12 @@ export default function ProductDetail() {
   // Add to cart helper
   const addToCart = () => {
     if (!product) return;
+    if (!token) {
+      const next = encodeURIComponent(location.pathname + location.search);
+      toast("Please sign in to add items", { description: "You need an account to use the cart." });
+      navigate(`/signup?next=${next}`);
+      return;
+    }
     const st = String(product.status || '').toLowerCase();
     if (st && st !== 'unsold') {
       toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
