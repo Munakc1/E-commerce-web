@@ -331,6 +331,9 @@ async function initDb() {
   // (Deprecated) Seller verification columns (kept for backward compatibility if present)
   await ensureColumn('users', "is_verified_seller TINYINT(1) NOT NULL DEFAULT 0", 'role');
   await ensureColumn('users', 'seller_tier VARCHAR(30) NULL', 'is_verified_seller');
+  // Password reset fields
+  await ensureColumn('users', 'reset_token VARCHAR(100) NULL', 'seller_tier');
+  await ensureColumn('users', 'reset_token_expires DATETIME NULL', 'reset_token');
   // Map orders to eSewa transaction UUID when initiating payment
   await ensureColumn('orders', 'esewa_transaction_uuid VARCHAR(100) NULL', 'payment_status');
   // Map orders to Khalti payment pidx for verification

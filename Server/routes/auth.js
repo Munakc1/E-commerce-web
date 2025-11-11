@@ -3,6 +3,8 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken"); // ← Add this
 const pool = require("../db"); // Using CommonJS now
+const crypto = require('crypto');
+const { sendMail } = require('../config/mailer');
 
 const router = express.Router();
 
@@ -116,3 +118,59 @@ router.post("/signin", async (req, res) => {
 });
 
 module.exports = router;
+// ---------------- Forgot Password ----------------
+router.post('/forgot', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || !String(email).includes('@')) return res.status(400).json({ error: 'Valid email required' });
+  try {
+    const [rows] = await pool.query('SELECT id, email, name FROM users WHERE email = ? LIMIT 1', [email]);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      // To avoid enumeration, respond success anyway
+      return res.json({ success: true, message: 'If that account exists, a reset link has been created.' });
+    }
+    const user = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await pool.query('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', [token, expires, user.id]);
+    const clientBase = process.env.CLIENT_BASE_URL || 'http://localhost:5173';
+    const resetLink = `${clientBase}/reset-password?token=${encodeURIComponent(token)}`;
+    try {
+      await sendMail({
+        to: user.email,
+        subject: 'Password Reset',
+        text: `Hello ${user.name || ''},\nUse the link to reset your password: ${resetLink}\nThis link expires in 1 hour.`,
+        html: `<p>Hello ${user.name || ''},</p><p><a href="${resetLink}" target="_blank" rel="noopener">Reset your password</a>. Link expires in 1 hour.</p>`
+      });
+    } catch (e) {
+      console.warn('Mail send failed (fallback logging).', e && e.message ? e.message : e);
+    }
+    res.json({ success: true, message: 'Reset link generated. Check email (or console in dev).' });
+  } catch (e) {
+    console.error('forgot error', e);
+    res.status(500).json({ error: 'Failed to create reset link' });
+  }
+});
+
+// ---------------- Reset Password ----------------
+router.post('/reset', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'token and password required' });
+  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  try {
+    const [rows] = await pool.query('SELECT id, reset_token_expires FROM users WHERE reset_token = ? LIMIT 1', [token]);
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' });
+    const user = rows[0];
+    const exp = user.reset_token_expires ? new Date(user.reset_token_expires) : null;
+    if (!exp || exp.getTime() < Date.now()) {
+      // Expired: clear token
+      await pool.query('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [user.id]);
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [hashed, user.id]);
+    res.json({ success: true, message: 'Password updated. You can now sign in.' });
+  } catch (e) {
+    console.error('reset error', e);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});

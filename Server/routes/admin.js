@@ -198,21 +198,55 @@ module.exports = router;
 // Sales analytics: totals and last 30 days time series, plus top products
 router.get('/analytics/sales', requireAdmin, async (_req, res) => {
   try {
+    // Aggregate totals
     const [[totals]] = await pool.query(
-      "SELECT\n+         COALESCE(SUM(CASE WHEN payment_status = 'paid' OR status = 'sold' THEN total ELSE 0 END),0) AS totalSales,\n+         COALESCE(SUM(CASE WHEN (payment_status = 'paid' OR status = 'sold') AND DATE(created_at) = CURDATE() THEN total ELSE 0 END),0) AS salesToday,\n+         COUNT(*) AS totalOrders,\n+         SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS paidOrders,\n+         SUM(CASE WHEN payment_status = 'pending' THEN 1 ELSE 0 END) AS pendingPayments\n+       FROM orders"
+      `SELECT
+         COALESCE(SUM(CASE WHEN payment_status = 'paid' OR status = 'sold' THEN total ELSE 0 END),0) AS totalSales,
+         COALESCE(SUM(CASE WHEN (payment_status = 'paid' OR status = 'sold') AND DATE(created_at) = CURDATE() THEN total ELSE 0 END),0) AS salesToday,
+         COUNT(*) AS totalOrders,
+         SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS paidOrders,
+         SUM(CASE WHEN payment_status = 'pending' THEN 1 ELSE 0 END) AS pendingPayments
+       FROM orders`
     );
 
+    // Sales time series for last 30 days
     const [seriesRows] = await pool.query(
-      "SELECT DATE(created_at) AS d, COALESCE(SUM(total),0) AS sales\n+       FROM orders\n+       WHERE (payment_status = 'paid' OR status = 'sold')\n+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)\n+       GROUP BY DATE(created_at)\n+       ORDER BY d ASC"
+      `SELECT DATE(created_at) AS d, COALESCE(SUM(total),0) AS sales
+       FROM orders
+       WHERE (payment_status = 'paid' OR status = 'sold')
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+       GROUP BY DATE(created_at)
+       ORDER BY d ASC`
     );
 
+    // Top products by revenue
     const [topProductsRows] = await pool.query(
-      "SELECT oi.product_id, oi.title,\n+              COALESCE(SUM(oi.price),0) AS revenue,\n+              COUNT(*) AS qty\n+       FROM order_items oi\n+       JOIN orders o ON o.id = oi.order_id\n+       WHERE (o.payment_status = 'paid' OR o.status = 'sold')\n+       GROUP BY oi.product_id, oi.title\n+       ORDER BY revenue DESC\n+       LIMIT 5"
+      `SELECT oi.product_id, oi.title,
+              COALESCE(SUM(oi.price),0) AS revenue,
+              COUNT(*) AS qty
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       WHERE (o.payment_status = 'paid' OR o.status = 'sold')
+       GROUP BY oi.product_id, oi.title
+       ORDER BY revenue DESC
+       LIMIT 5`
     );
 
-    const series = Array.isArray(seriesRows)
+    let series = Array.isArray(seriesRows)
       ? seriesRows.map(r => ({ date: new Date(r.d).toISOString().slice(0, 10), sales: Number(r.sales || 0) }))
       : [];
+
+    // Zero-fill missing days to make chart continuous
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 29);
+    const map = new Map(series.map(p => [p.date, p.sales]));
+    const filled = [];
+    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      filled.push({ date: iso, sales: map.get(iso) || 0 });
+    }
+    series = filled;
     const topProducts = Array.isArray(topProductsRows)
       ? topProductsRows.map(r => ({
           product_id: r.product_id,

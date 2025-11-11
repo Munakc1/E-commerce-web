@@ -82,6 +82,7 @@ Note: If these accounts don’t exist in your DB yet, create them via Sign Up th
 - Payment ledger: minimal SQL table & generic verification endpoint
 - Order audit log: tracks status/payment transitions for traceability
 - Admin bulk import: upload CSV on Admin → Products to create many products at once
+- Password reset: request link and token-based reset (1h expiry)
 
 ---
 
@@ -176,6 +177,53 @@ Classic White Tee,800,,Uniqlo,men,L,good,Lalitpur,https://example.com/tee.jpg
 ```
 
 For SQL-based bulk import, you can craft `INSERT INTO products (...) VALUES (...);` statements; see `Server/config/initDb.js` for column names.
+
+---
+
+## Password Reset Flow
+
+Endpoints:
+- POST `/api/auth/forgot` body: `{ email }` → generates a 32-byte hex `reset_token` and `reset_token_expires` (+1h) for the user if it exists. Always returns success to avoid email enumeration.
+- POST `/api/auth/reset` body: `{ token, password }` → validates token & expiry, hashes new password (bcrypt), clears token fields.
+
+Client pages:
+- `/forgot-password` — enter email to request a reset link.
+- `/reset-password?token=...` — set a new password and get redirected to Sign In.
+
+Dev email fallback:
+- If SMTP is not configured, the app uses Nodemailer `jsonTransport` to print email content to the server console (look for a JSON object that includes `resetLink`).
+
+### Configure Gmail SMTP (App Password)
+Google requires an App Password (with 2‑Step Verification enabled) for SMTP.
+
+1) Enable 2‑Step Verification on your Google account.
+2) Create an App Password: https://myaccount.google.com/apppasswords
+3) Use these in `Server/.env` (or the Render dashboard):
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=yourgmail@gmail.com
+SMTP_PASS=your_16_char_app_password
+SMTP_FROM=Thriftsy <yourgmail@gmail.com>
+CLIENT_BASE_URL=http://localhost:5173
+```
+
+Notes:
+- Use port 587 (STARTTLS). Port 465 works too (set `SMTP_PORT=465`).
+- App Password is different from your normal Gmail password—keep it secret.
+- On free hosts, outbound SMTP can be blocked; if so, consider SendGrid/Resend free tiers.
+
+Manual test checklist:
+1) Visit `/forgot-password`, submit a known account.
+2) Open email (or check server console in dev) and click the link.
+3) Set a new password on `/reset-password?token=...`.
+4) Sign in with the new password; the old one should fail.
+
+Security considerations:
+- Tokens are single-use and expire after 1 hour.
+- To harden further, store a hash of the token instead of plaintext.
+- Respond generically on `/forgot` to prevent user enumeration.
 
 ---
 

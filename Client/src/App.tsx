@@ -14,6 +14,8 @@ import Sell from "./pages/Sell";
 import Donate from "./pages/Donate";
 import { SignUp } from "./pages/SignUp";
 import { SignIn } from "./pages/SignIn";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ProductDetail from "./pages/ProductDetail";
@@ -49,6 +51,8 @@ const App = () => (
             <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/profile"
               element={

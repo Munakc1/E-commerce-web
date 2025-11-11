@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Leaf, Heart, Users, Recycle, Target, Award, Globe, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const About = () => {
   const stats = [
@@ -104,6 +105,8 @@ const About = () => {
       return () => timers.forEach((timer) => clearInterval(timer));
     }
   }, [isVisible, dynamicStats]);
+
+  const { isAuthenticated } = useAuth();
 
   return (
     <>
@@ -296,7 +299,7 @@ const About = () => {
               className="bg-white text-thrift-green hover:bg-gray-100"
               aria-label="Start shopping for sustainable fashion"
             >
-              <Link to="/shop">Start Shopping</Link>
+              <Link to={isAuthenticated ? "/shop" : "/signup?next=%2Fshop"}>Start Shopping</Link>
             </Button>
             <Button
               asChild
@@ -304,7 +307,7 @@ const About = () => {
               className="bg-white text-thrift-green hover:bg-gray-100"
               aria-label="Become a seller on ThriftSy"
             >
-              <Link to="/sell">Become a Seller</Link>
+              <Link to={isAuthenticated ? "/sell" : "/signup?next=%2Fsell"}>Become a Seller</Link>
             </Button>
           </div>
         </div>

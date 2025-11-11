@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@mui/material";
 import ArrowRightAltIcon from "@mui/icons-material/ArrowRightAlt";
 import { ProductCard } from "@/components/product/ProductCard";
+import { useAuth } from "@/context/AuthContext";
 
 type Product = {
   id: string;
@@ -26,6 +27,7 @@ export const FeaturedProducts = () => {
   const [showAll, setShowAll] = useState(false);
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // Fetch data from backend, fallback to mock
   useEffect(() => {
@@ -74,7 +76,11 @@ export const FeaturedProducts = () => {
   }, []);
 
   const handleViewAll = () => {
-    navigate("/shop");
+    if (!isAuthenticated) {
+      navigate(`/signup?next=${encodeURIComponent('/shop')}`);
+    } else {
+      navigate("/shop");
+    }
   };
 
   return (

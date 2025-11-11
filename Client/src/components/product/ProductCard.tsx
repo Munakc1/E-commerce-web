@@ -75,6 +75,12 @@ export const ProductCard = ({
   };
 
   const handleAddToCart = () => {
+    // Require auth for adding to cart (redirect suggestion)
+    if (!auth?.token) {
+      toast.error('Please sign in first', { description: 'Create an account to add items to your cart.' });
+      try { window.dispatchEvent(new CustomEvent('authRedirect', { detail: { to: '/signup?next=%2Fshop' } })); } catch {}
+      return;
+    }
     // Prevent adding items that are not available for sale
     const st = String(status || "").toLowerCase();
     if (st && st !== 'unsold') {
@@ -283,8 +289,12 @@ export const ProductCard = ({
         {
           (() => {
             const st = String(status || "").toLowerCase();
-            const disabled = !!st && st !== 'unsold';
-            const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
+            const disabledStatus = !!st && st !== 'unsold';
+            const disabledAuth = !auth?.token;
+            const disabled = disabledStatus || disabledAuth;
+            const label = disabledStatus
+              ? (st === 'sold' ? 'Sold' : 'Not available')
+              : (disabledAuth ? 'Sign in to add' : 'Add to Cart');
             return (
               <Button
                 className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
