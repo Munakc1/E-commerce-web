@@ -321,7 +321,13 @@ async function initDb() {
   
   await ensureColumn('users', 'phone VARCHAR(20) NULL', 'email');
   // Basic RBAC: user role column
-  await ensureColumn('users', "role VARCHAR(30) NOT NULL DEFAULT 'buyer'", 'phone');
+  await ensureColumn('users', "role VARCHAR(30) NOT NULL DEFAULT 'user'", 'phone');
+  // Migrate legacy 'buyer' role values to unified 'user'
+  try {
+    await pool.query("UPDATE users SET role='user' WHERE role='buyer'");
+  } catch (e) {
+    console.warn('Role migration buyer->user warning:', e && e.message ? e.message : e);
+  }
   await ensureColumn('products', 'phone VARCHAR(20) NULL', 'seller');
   await ensureColumn('products', 'user_id INT UNSIGNED NULL', 'id');
   await ensureColumn('products', 'category VARCHAR(50) NULL', 'size');
@@ -438,6 +444,7 @@ async function initDb() {
   } catch (e) {
     console.warn('admin bootstrap warning:', e && e.message ? e.message : e);
   }
+
   console.log('✅ Database and tables are ready');
 }
 
