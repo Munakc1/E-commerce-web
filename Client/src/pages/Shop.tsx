@@ -338,8 +338,14 @@ const Shop = () => {
     };
   }, []);
 
-  // Add to cart: single-quantity thrift items (no duplicates)
+  // Add to cart: requires auth; single-quantity thrift items (no duplicates)
   const addToCart = (listing: Listing) => {
+    if (!isAuthenticated) {
+      const next = encodeURIComponent(location.pathname + location.search);
+      toast("Please sign in to add items", { description: "You need an account to use the cart." });
+      navigate(`/signup?next=${next}`);
+      return;
+    }
     const st = String(listing.status || '').toLowerCase();
     if (st && st !== 'unsold') {
       toast.error('Item cannot be added to cart', { description: `This listing is ${st.replace('_',' ')}` });
@@ -634,24 +640,37 @@ const Shop = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Category: {listing.category}
                     </p>
-                    {
-                      (() => {
-                        const st = String(listing.status || '').toLowerCase();
-                        const disabled = !!st && st !== 'unsold';
-                        const label = disabled ? (st === 'sold' ? 'Sold' : 'Not available') : 'Add to Cart';
-                        return (
-                          <Button
-                            className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${disabled ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
-                            onClick={(e) => { e.stopPropagation(); if (!disabled) addToCart(listing); }}
-                            aria-label={label}
-                            disabled={disabled}
-                          >
-                            <ShoppingCart className="w-4 h-4 mr-2" />
-                            {label}
-                          </Button>
-                        );
-                      })()
-                    }
+                    {(() => {
+                      const st = String(listing.status || '').toLowerCase();
+                      const unavailable = !!st && st !== 'unsold';
+                      const showSignIn = !unavailable && !isAuthenticated;
+                      const label = unavailable
+                        ? (st === 'sold' ? 'Sold' : 'Not available')
+                        : showSignIn
+                          ? 'Sign in to add'
+                          : 'Add to Cart';
+                      const onClick = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        if (unavailable) return;
+                        if (showSignIn) {
+                          const next = encodeURIComponent(location.pathname + location.search);
+                          navigate(`/signup?next=${next}`);
+                          return;
+                        }
+                        addToCart(listing);
+                      };
+                      return (
+                        <Button
+                          className={`w-full py-2 px-3 text-sm rounded-full shadow-sm transition transform hover:-translate-y-[1px] ${unavailable ? 'cursor-not-allowed bg-gray-200 text-gray-700' : 'bg-thrift-green hover:bg-thrift-green/90 text-white'}`}
+                          onClick={onClick}
+                          aria-label={label}
+                          disabled={unavailable}
+                        >
+                          <ShoppingCart className="w-4 h-4 mr-2" />
+                          {label}
+                        </Button>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}

@@ -11,6 +11,15 @@ function buildTransporter() {
   } = process.env;
 
   if (SMTP_HOST) {
+    // Helpful warning if using Gmail host but non-Gmail user
+    try {
+      if (/gmail\.com$/i.test(String(SMTP_HOST)) || /smtp\.gmail\.com/i.test(String(SMTP_HOST))) {
+        const isGmailUser = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(String(SMTP_USER || ''));
+        if (!isGmailUser) {
+          console.warn('[mailer] SMTP_HOST looks like Gmail but SMTP_USER is not a @gmail.com address.');
+        }
+      }
+    } catch {}
     return nodemailer.createTransport({
       host: SMTP_HOST,
       port: Number(SMTP_PORT) || 587,

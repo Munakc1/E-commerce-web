@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,25 @@ export const SignIn: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth(); // ← Add this line
+
+  // Derive intended post-auth redirect from ?next= param
+  const searchParams = new URLSearchParams(location.search);
+  const rawNext = searchParams.get('next') || '';
+  const sanitizeNext = (val: string): string => {
+    if (!val) return '/';
+    try { val = decodeURIComponent(val); } catch {}
+    // Enforce leading slash and strip protocol to avoid open redirect / injection
+    if (/^[a-zA-Z]+:/.test(val)) return '/';
+    if (!val.startsWith('/')) val = '/' + val.replace(/^\/*/, '');
+    // Prevent redirecting back to auth pages causing loops
+    if (/^\/(signin|signup)$/i.test(val)) return '/';
+    return val;
+  };
+  const nextPath = sanitizeNext(rawNext);
+
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +43,7 @@ export const SignIn: React.FC = () => {
       setError('Email is required');
       return;
     }
-    if (!email.includes('@')) {
+    if (!isValidEmail(email)) {
       setError('Please enter a valid email address');
       return;
     }
@@ -52,8 +70,8 @@ export const SignIn: React.FC = () => {
       }
 
       if (data.success && data.token) {
-        login(data.token, data.user); // ← Change this line
-        navigate('/'); // ← Goes to home
+        login(data.token, data.user); // store auth
+        navigate(nextPath); // redirect to intended destination or home
       }
     } catch (err: any) {
       setError(err.message || 'Network error. Please try again.');
@@ -80,7 +98,7 @@ export const SignIn: React.FC = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="yourname@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -133,7 +151,10 @@ export const SignIn: React.FC = () => {
           </Link>
           <p className="text-sm text-gray-600">
             Don&apos;t have an account?{' '}
-            <Link to="/signup" className="text-thrift-green hover:underline">
+            <Link
+              to={`/signup${rawNext ? `?next=${encodeURIComponent(rawNext)}` : ''}`}
+              className="text-thrift-green hover:underline"
+            >
               Sign Up
             </Link>
           </p>

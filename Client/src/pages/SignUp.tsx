@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,24 @@ export const SignUp = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth(); // ← Add this line
 
-  const handleSubmit = async (e) => {
+  // Derive intended post-auth redirect from ?next= param
+  const searchParams = new URLSearchParams(location.search);
+  const rawNext = searchParams.get('next') || '';
+  const sanitizeNext = (val: string): string => {
+    if (!val) return '/';
+    try { val = decodeURIComponent(val); } catch {}
+    if (/^[a-zA-Z]+:/.test(val)) return '/';
+    if (!val.startsWith('/')) val = '/' + val.replace(/^\/*/, '');
+    if (/^\/(signin|signup)$/i.test(val)) return '/';
+    return val;
+  };
+  const nextPath = sanitizeNext(rawNext);
+
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -26,7 +41,7 @@ export const SignUp = () => {
       setError("Name is required");
       return;
     }
-    if (!email.includes("@")) {
+    if (!isValidEmail(email)) {
       setError("Please enter a valid email address");
       return;
     }
@@ -52,8 +67,8 @@ export const SignUp = () => {
       }
 
       if (data.success && data.token) {
-        login(data.token, data.user); // ← Change this line
-        navigate("/"); // ← Change to home page
+        login(data.token, data.user); // persist auth
+        navigate(nextPath); // redirect to intended destination or home
       }
     } catch (err) {
       // Show specific error message
@@ -97,7 +112,7 @@ export const SignUp = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="yourname@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -145,7 +160,10 @@ export const SignUp = () => {
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link to="/signin" className="text-thrift-green hover:underline">
+            <Link
+              to={`/signin${rawNext ? `?next=${encodeURIComponent(rawNext)}` : ''}`}
+              className="text-thrift-green hover:underline"
+            >
               Sign In
             </Link>
           </p>
