@@ -222,23 +222,6 @@ async function initDb() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
     // Seller verification applications
-    `CREATE TABLE IF NOT EXISTS seller_verifications (
-      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
-      shop_name VARCHAR(120) NULL,
-      status VARCHAR(30) NOT NULL DEFAULT 'pending', -- pending | approved | rejected
-      documents JSON NULL, -- array of uploaded file paths / metadata
-      notes TEXT NULL, -- admin decision notes or rejection reason
-      decided_by INT UNSIGNED NULL,
-      decided_at TIMESTAMP NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      PRIMARY KEY (id),
-      KEY idx_user (user_id),
-      KEY idx_status (status),
-      CONSTRAINT fk_seller_verifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      CONSTRAINT fk_seller_verifications_decider FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
     // Peer seller trust: feedback after purchase
     `CREATE TABLE IF NOT EXISTS seller_feedback (
