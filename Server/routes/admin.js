@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const notify = require('../utils/notify');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -145,6 +146,8 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    let changedStatus = false;
+    let changedPayment = false;
     if (status) {
       // fetch current for audit
       const [[cur]] = await conn.query('SELECT status FROM orders WHERE id = ?', [id]);
@@ -160,6 +163,7 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
           await conn.query(`UPDATE products SET status = 'unsold' WHERE id IN (${ph}) AND status = 'order_received'`, prodIds);
         }
       }
+      changedStatus = true;
     }
     if (payment_status) {
       const [[cur]] = await conn.query('SELECT payment_status FROM orders WHERE id = ?', [id]);
@@ -167,10 +171,34 @@ router.put('/orders/:id', requireAdmin, async (req, res) => {
       try {
         await conn.query('INSERT INTO order_audit_log (order_id, actor_id, field, old_value, new_value) VALUES (?, ?, ?, ?, ?)', [id, req.adminId || null, 'payment_status', cur?.payment_status || null, String(payment_status)]);
       } catch {}
+      changedPayment = true;
     }
     await conn.commit();
     const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [id]);
     const [orderItems] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [id]);
+    // Notifications: inform buyer & sellers about status/payment changes
+    if ((changedStatus || changedPayment) && order) {
+      try {
+        const recipients = new Set();
+        if (order.user_id) recipients.add(Number(order.user_id));
+        const [sellerRows] = await pool.query('SELECT DISTINCT seller_id FROM seller_sales WHERE order_id = ?', [id]);
+        for (const r of (Array.isArray(sellerRows) ? sellerRows : [])) {
+          if (r.seller_id) recipients.add(Number(r.seller_id));
+        }
+        if (recipients.size > 0) {
+          const payloadObj = { orderId: id, status: order.status, payment_status: order.payment_status };
+          const payloadStr = JSON.stringify(payloadObj);
+          const values = [];
+          const params = [];
+          for (const uid of recipients) { values.push('(?, ?, ?)'); params.push(uid, 'order_updated', payloadStr); }
+          await pool.query(`INSERT INTO notifications (user_id, type, payload) VALUES ${values.join(',')}`, params);
+          for (const uid of recipients) { try { notify.send(uid, 'notification', { type: 'order_updated', ...payloadObj }); } catch {} }
+        }
+      } catch (e) {
+        // non-fatal
+        console.warn('order update notification error:', e && e.message ? e.message : e);
+      }
+    }
     res.json({ ...order, items: (Array.isArray(orderItems) ? orderItems : []).map(it => ({ id: it.id, product_id: it.product_id, title: it.title, price: it.price, quantity: 1 })) });
   } catch (e) {
     try { await conn.rollback(); } catch {}
@@ -196,8 +224,16 @@ module.exports = router;
 // --- Admin analytics ---
 
 // Sales analytics: totals and last 30 days time series, plus top products
-router.get('/analytics/sales', requireAdmin, async (_req, res) => {
+router.get('/analytics/sales', requireAdmin, async (req, res) => {
   try {
+    // range query param (days): default 30, clamp 7..180
+    let range = parseInt(String(req.query.range || '30'), 10);
+    if (!Number.isFinite(range)) range = 30;
+    range = Math.max(7, Math.min(180, range));
+    const startDate = new Date();
+    startDate.setHours(0,0,0,0);
+    startDate.setDate(startDate.getDate() - (range - 1));
+    const startIso = startDate.toISOString().slice(0,10) + ' 00:00:00';
     // Aggregate totals
     const [[totals]] = await pool.query(
       `SELECT
@@ -209,14 +245,14 @@ router.get('/analytics/sales', requireAdmin, async (_req, res) => {
        FROM orders`
     );
 
-    // Sales time series for last 30 days
     const [seriesRows] = await pool.query(
       `SELECT DATE(created_at) AS d, COALESCE(SUM(total),0) AS sales
        FROM orders
        WHERE (payment_status = 'paid' OR status = 'sold')
-         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+         AND created_at >= ?
        GROUP BY DATE(created_at)
-       ORDER BY d ASC`
+       ORDER BY d ASC`,
+      [startIso]
     );
 
     // Top products by revenue
@@ -238,8 +274,8 @@ router.get('/analytics/sales', requireAdmin, async (_req, res) => {
 
     // Zero-fill missing days to make chart continuous
     const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - 29);
+    today.setHours(0,0,0,0);
+    const start = new Date(startDate);
     const map = new Map(series.map(p => [p.date, p.sales]));
     const filled = [];
     for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
@@ -262,7 +298,7 @@ router.get('/analytics/sales', requireAdmin, async (_req, res) => {
       totalOrders: Number(totals.totalOrders || 0),
       paidOrders: Number(totals.paidOrders || 0),
       pendingPayments: Number(totals.pendingPayments || 0),
-      salesLast30Days: series,
+      salesLast30Days: series, // kept key name for backward compatibility
       topProducts,
     });
   } catch (e) {

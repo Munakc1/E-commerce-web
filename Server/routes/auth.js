@@ -35,7 +35,7 @@ router.post("/signup", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user (role defaults to 'buyer' via schema)
+  // Insert user (role defaults to 'user' via schema)
     const [result] = await pool.execute(
       "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
       [name, email, hashedPassword]
@@ -58,7 +58,7 @@ router.post("/signup", async (req, res) => {
       success: true, 
       message: "Account created successfully",
       token,
-  user: { id: result.insertId, name: urows[0]?.name || name, email: urows[0]?.email || email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null }
+  user: { id: result.insertId, name: urows[0]?.name || name, email: urows[0]?.email || email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'user', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null }
     });
 
   } catch (err) {
@@ -109,7 +109,7 @@ router.post("/signin", async (req, res) => {
       success: true, 
       message: "Login successful", 
       token,
-      user: { id: urows[0]?.id || user.id, name: urows[0]?.name || user.name, email: urows[0]?.email || user.email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'buyer', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null } 
+  user: { id: urows[0]?.id || user.id, name: urows[0]?.name || user.name, email: urows[0]?.email || user.email, phone: urows[0]?.phone || null, role: urows[0]?.role || 'user', is_verified_seller: urows[0]?.is_verified_seller === 1, seller_tier: urows[0]?.seller_tier || null } 
     });
   } catch (err) {
     console.error("SignIn error:", err);

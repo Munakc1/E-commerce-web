@@ -68,6 +68,7 @@ export default function AdminPage() {
   // Legacy seller verification removed; trust now derives from post-purchase feedback.
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [salesRange, setSalesRange] = useState<number>(30); // days: 7,30,90
 
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
 
@@ -88,7 +89,7 @@ export default function AdminPage() {
     setAnalyticsLoading(true);
     try {
       // Simple sessionStorage cache (2 min TTL)
-      const key = 'admin_sales_cache_v1';
+      const key = `admin_sales_cache_v1_${salesRange}`;
       const cachedRaw = sessionStorage.getItem(key);
       if (cachedRaw) {
         try {
@@ -100,7 +101,7 @@ export default function AdminPage() {
           }
         } catch {}
       }
-      const res = await fetch(`${apiBase}/api/admin/analytics/sales`, { headers });
+      const res = await fetch(`${apiBase}/api/admin/analytics/sales?range=${salesRange}`, { headers });
       if (!res.ok) return;
       const data: Analytics = await res.json();
       setAnalytics(data);
@@ -209,7 +210,18 @@ export default function AdminPage() {
 
               <Card className="border-none shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Sales (Last 30 days)</CardTitle>
+                  <div className="flex items-center gap-4">
+                    <CardTitle>Sales (Last {salesRange} days)</CardTitle>
+                    <select
+                      className="border rounded px-2 py-1 text-sm"
+                      value={salesRange}
+                      onChange={(e) => { setSalesRange(Number(e.target.value)); setTimeout(loadAnalytics, 0); }}
+                    >
+                      <option value={7}>7d</option>
+                      <option value={30}>30d</option>
+                      <option value={90}>90d</option>
+                    </select>
+                  </div>
                   <Button variant="ghost" onClick={loadAnalytics}>{analyticsLoading ? 'Loading...' : 'Refresh'}</Button>
                 </CardHeader>
                 <CardContent>
@@ -314,8 +326,8 @@ export default function AdminPage() {
                       <div className="text-sm text-muted-foreground">{u.phone || '—'} • joined {new Date(u.created_at).toLocaleDateString()}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <select className="border rounded px-2 py-1 text-sm" value={String(u.role||'buyer')} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
-                        <option value="buyer">buyer</option>
+                      <select className="border rounded px-2 py-1 text-sm" value={String(u.role||'user')} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
+                        <option value="user">user</option>
                         <option value="admin">admin</option>
                       </select>
                     </div>
