@@ -22,7 +22,6 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "Password must be at least 6 characters" });
 
   try {
-    // Check if email already exists
     const [existing] = await pool.execute(
       "SELECT id FROM users WHERE email = ?",
       [email]
@@ -35,13 +34,11 @@ router.post("/signup", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Insert user (role defaults to 'user' via schema)
     const [result] = await pool.execute(
       "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
       [name, email, hashedPassword]
     );
 
-    // Fetch created user (include role)
     const [urows] = await pool.execute(
       "SELECT id, name, email, phone, role, is_verified_seller, seller_tier FROM users WHERE id = ?",
       [result.insertId]
@@ -125,7 +122,6 @@ router.post('/forgot', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, email, name FROM users WHERE email = ? LIMIT 1', [email]);
     if (!Array.isArray(rows) || rows.length === 0) {
-      // To avoid enumeration, respond success anyway
       return res.json({ success: true, message: 'If that account exists, a reset link has been created.' });
     }
     const user = rows[0];
