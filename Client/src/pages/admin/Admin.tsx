@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -65,6 +67,10 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  // table UX state
+  const [query, setQuery] = useState<string>('');
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 10;
   // Legacy seller verification removed; trust now derives from post-purchase feedback.
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -91,6 +97,7 @@ export default function AdminPage() {
       // Simple sessionStorage cache (2 min TTL)
       const key = `admin_sales_cache_v1_${salesRange}`;
       const cachedRaw = sessionStorage.getItem(key);
+      setPage(1);
       if (cachedRaw) {
         try {
           const cached = JSON.parse(cachedRaw);
@@ -99,6 +106,7 @@ export default function AdminPage() {
             setAnalyticsLoading(false);
             return;
           }
+      setPage(1);
         } catch {}
       }
       const res = await fetch(`${apiBase}/api/admin/analytics/sales?range=${salesRange}`, { headers });
@@ -107,6 +115,7 @@ export default function AdminPage() {
       setAnalytics(data);
       try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
     } finally {
+      setPage(1);
       setAnalyticsLoading(false);
     }
   };
@@ -184,6 +193,65 @@ export default function AdminPage() {
 
   // remove legacy verification handlers
 
+  // helpers: filtering + pagination
+  const normalize = (v: any) => (v == null ? '' : String(v).toLowerCase());
+  const paginate = <T,>(arr: T[]) => {
+    const start = (page - 1) * pageSize;
+    return arr.slice(start, start + pageSize);
+  };
+
+  // derive display rows per tab
+  const filteredOrders = useMemo(() => {
+    const q = normalize(query);
+    const rows = orders.map(o => {
+      let phone = '';
+      let address = '';
+      try {
+        const sa = o.shipping_address ? (typeof o.shipping_address === 'string' ? JSON.parse(o.shipping_address) : o.shipping_address) : {};
+        phone = sa.phone || sa.contact || '';
+        address = sa.address || sa.addressLine || sa.street || '';
+      } catch {}
+      return { ...o, _phone: phone, _address: address };
+    }).filter(o => {
+      if (!q) return true;
+      return (
+        normalize(o.id).includes(q) ||
+        normalize(o.user_id).includes(q) ||
+        normalize(o._phone).includes(q) ||
+        normalize(o._address).includes(q) ||
+        normalize(o.status).includes(q) ||
+        normalize(o.payment_status).includes(q) ||
+        normalize(o.payment_method).includes(q)
+      );
+    });
+    return rows;
+  }, [orders, query]);
+
+  const filteredProducts = useMemo(() => {
+    const q = normalize(query);
+    return products.filter(p => {
+      if (!q) return true;
+      return (
+        normalize(p.title).includes(q) ||
+        normalize(p.brand).includes(q) ||
+        normalize(p.category).includes(q) ||
+        normalize(p.status).includes(q)
+      );
+    });
+  }, [products, query]);
+
+  const filteredUsers = useMemo(() => {
+    const q = normalize(query);
+    return users.filter(u => {
+      if (!q) return true;
+      return (
+        normalize(u.name).includes(q) ||
+        normalize(u.email).includes(q) ||
+        normalize(u.role).includes(q)
+      );
+    });
+  }, [users, query]);
+
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold mb-6">Admin</h1>
@@ -239,44 +307,89 @@ export default function AdminPage() {
 
           {tab === 'orders' && (
             <Card className="border-none shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Orders</CardTitle><Button variant="ghost" onClick={loadOrders}>{loading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
+              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <CardTitle>Orders</CardTitle>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <Input placeholder="Search..." value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
+                  <Button variant="outline" type="button">Filter</Button>
+                  <Button variant="ghost" onClick={loadOrders}>{loading ? 'Loading...' : 'Refresh'}</Button>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-3">
-                {orders.map(o => (
-                  <div key={o.id} className="border rounded p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">Order #{o.id}</div>
-                        <div className="text-sm text-muted-foreground">{new Date(o.created_at).toLocaleString()} • NPR {Number(o.total||0).toLocaleString()}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <select className="border rounded px-2 py-1 text-sm" value={String(o.status||'pending')} onChange={(e) => updateOrder(o.id, { status: e.target.value })}>
-                          <option value="pending">pending</option>
-                          <option value="cancelled">cancelled</option>
-                          <option value="sold">sold</option>
-                        </select>
-                        <select className="border rounded px-2 py-1 text-sm" value={String(o.payment_status||'pending')} onChange={(e) => updateOrder(o.id, { payment_status: e.target.value })}>
-                          <option value="pending">pending</option>
-                          <option value="paid">paid</option>
-                          <option value="refunded">refunded</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">{(o.items||[]).length} item(s)</div>
-                    {(() => {
-                      const related = ledger.filter(l => Number(l.order_id) === Number(o.id));
-                      if (related.length === 0) return <div className="text-xs text-muted-foreground">No ledger entries.</div>;
-                      const latest = related[0];
-                      return (
-                        <div className="text-xs flex flex-wrap gap-3 items-center">
-                          <span className="inline-flex items-center rounded-full bg-thrift-green/10 px-2 py-0.5 text-[10px] font-medium text-thrift-green">Ledger #{latest.id}</span>
-                          <span className="text-muted-foreground">{latest.method}{latest.gateway_txn_id ? ` • ${latest.gateway_txn_id}` : ''}</span>
-                          <span className={latest.status === 'verified' ? 'text-green-600' : 'text-yellow-600'}>{latest.status}</span>
-                          {latest.amount != null && <span>Amt: {Number(latest.amount).toLocaleString()} {latest.currency}</span>}
-                        </div>
-                      );
-                    })()}
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-muted-foreground">
+                      <tr className="border-b">
+                        <th className="py-2 pr-4">Order ID</th>
+                        <th className="py-2 pr-4">Customer</th>
+                        <th className="py-2 pr-4">Phone</th>
+                        <th className="py-2 pr-4">Address</th>
+                        <th className="py-2 pr-4">Total</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-4">Payment Method</th>
+                        <th className="py-2 pr-4">Payment Status</th>
+                        <th className="py-2 pr-0">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginate(filteredOrders).map(o => {
+                        let phone = '';
+                        let address = '';
+                        try {
+                          const sa = o.shipping_address ? (typeof o.shipping_address === 'string' ? JSON.parse(o.shipping_address) : o.shipping_address) : {};
+                          phone = sa.phone || sa.contact || '';
+                          address = sa.address || sa.addressLine || sa.street || '';
+                        } catch {}
+                        const related = ledger.filter(l => Number(l.order_id) === Number(o.id));
+                        const latest = related[0];
+                        return (
+                          <tr key={o.id} className="border-b hover:bg-muted/30">
+                            <td className="py-2 pr-4 font-medium">{o.id}</td>
+                            <td className="py-2 pr-4">{o.user_id ?? '—'}</td>
+                            <td className="py-2 pr-4">{phone || '—'}</td>
+                            <td className="py-2 pr-4">{address || '—'}</td>
+                            <td className="py-2 pr-4">NPR {Number(o.total||0).toLocaleString()}</td>
+                            <td className="py-2 pr-4">
+                              <select className="border rounded px-2 py-1 text-xs" value={String(o.status||'pending')} onChange={(e) => updateOrder(o.id, { status: e.target.value })}>
+                                <option value="pending">pending</option>
+                                <option value="cancelled">cancelled</option>
+                                <option value="sold">sold</option>
+                              </select>
+                            </td>
+                            <td className="py-2 pr-4">{o.payment_method || '—'}</td>
+                            <td className="py-2 pr-4">
+                              <select className="border rounded px-2 py-1 text-xs" value={String(o.payment_status||'pending')} onChange={(e) => updateOrder(o.id, { payment_status: e.target.value })}>
+                                <option value="pending">pending</option>
+                                <option value="paid">paid</option>
+                                <option value="refunded">refunded</option>
+                              </select>
+                            </td>
+                            <td className="py-2 pr-0">
+                              <div className="flex items-center gap-2 text-xs">
+                                {String(o.status) !== 'cancelled' && (
+                                  <Button variant="ghost" size="sm" onClick={() => updateOrder(o.id, { status: 'cancelled' })}>Cancel</Button>
+                                )}
+                                {latest ? (
+                                  <Badge variant="secondary" className="whitespace-nowrap">{latest.method}{latest.gateway_txn_id ? ` • ${latest.gateway_txn_id}` : ''}</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div>Showing {paginate(filteredOrders).length} of {filteredOrders.length} orders</div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={page<=1} onClick={() => setPage(p => Math.max(1, p-1))}>Previous</Button>
+                    <div>Page {page} of {Math.max(1, Math.ceil(filteredOrders.length / pageSize))}</div>
+                    <Button variant="outline" size="sm" disabled={page>=Math.ceil(filteredOrders.length/pageSize)} onClick={() => setPage(p => p+1)}>Next</Button>
                   </div>
-                ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -288,51 +401,119 @@ export default function AdminPage() {
                   <CardTitle>Products</CardTitle>
                   <Button variant="ghost" onClick={loadProducts}>{loading ? 'Loading...' : 'Refresh'}</Button>
                 </div>
-                {/* Bulk CSV upload */}
-                <BulkCsvUploader apiBase={apiBase} headers={headers} onDone={loadProducts} />
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <Input placeholder="Search..." value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
+                  <Button variant="outline" type="button">Filter</Button>
+                  {/* Bulk CSV upload */}
+                  <BulkCsvUploader apiBase={apiBase} headers={headers} onDone={loadProducts} />
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {products.map(p => (
-                  <div key={p.id} className="border rounded p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src={(p.images && p.images[0]) || p.image} alt={p.title} className="w-12 h-12 object-cover rounded" />
-                      <div>
-                        <div className="font-medium">{p.title}</div>
-                        <div className="text-sm text-muted-foreground">NPR {Number(p.price||0).toLocaleString()} • {p.brand || '-'} • {p.category || '-'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select className="border rounded px-2 py-1 text-sm" value={String(p.status||'unsold')} onChange={(e) => updateProduct(p.id, { status: e.target.value })}>
-                        <option value="unsold">unsold</option>
-                        <option value="order_received">order_received</option>
-                        <option value="sold">sold</option>
-                      </select>
-                      <Button variant="destructive" size="sm" onClick={() => deleteProduct(p.id)}>Delete</Button>
-                    </div>
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-muted-foreground">
+                      <tr className="border-b">
+                        <th className="py-2 pr-4">Product ID</th>
+                        <th className="py-2 pr-4">Name</th>
+                        <th className="py-2 pr-4">Category</th>
+                        <th className="py-2 pr-4">Price</th>
+                        <th className="py-2 pr-4">Brand</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-0">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginate(filteredProducts).map(p => (
+                        <tr key={p.id} className="border-b hover:bg-muted/30">
+                          <td className="py-2 pr-4 font-medium">{p.id}</td>
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2">
+                              {(p.images?.[0] || p.image) && <img src={p.images?.[0] || p.image} alt={p.title} className="w-8 h-8 object-cover rounded" />}
+                              <span>{p.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-4">{p.category || '—'}</td>
+                          <td className="py-2 pr-4">NPR {Number(p.price||0).toLocaleString()}</td>
+                          <td className="py-2 pr-4">{p.brand || '—'}</td>
+                          <td className="py-2 pr-4">
+                            <select className="border rounded px-2 py-1 text-xs" value={String(p.status||'unsold')} onChange={(e) => updateProduct(p.id, { status: e.target.value })}>
+                              <option value="unsold">unsold</option>
+                              <option value="order_received">order_received</option>
+                              <option value="sold">sold</option>
+                            </select>
+                          </td>
+                          <td className="py-2 pr-0">
+                            <div className="flex items-center gap-2">
+                              <Button variant="destructive" size="sm" onClick={() => deleteProduct(p.id)}>Delete</Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div>Showing {paginate(filteredProducts).length} of {filteredProducts.length} products</div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={page<=1} onClick={() => setPage(p => Math.max(1, p-1))}>Previous</Button>
+                    <div>Page {page} of {Math.max(1, Math.ceil(filteredProducts.length / pageSize))}</div>
+                    <Button variant="outline" size="sm" disabled={page>=Math.ceil(filteredProducts.length/pageSize)} onClick={() => setPage(p => p+1)}>Next</Button>
                   </div>
-                ))}
+                </div>
               </CardContent>
             </Card>
           )}
 
           {tab === 'users' && (
             <Card className="border-none shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Users</CardTitle><Button variant="ghost" onClick={loadUsers}>{loading ? 'Loading...' : 'Refresh'}</Button></CardHeader>
+              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <CardTitle>Users</CardTitle>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <Input placeholder="Search..." value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
+                  <Button variant="outline" type="button">Filter</Button>
+                  <Button variant="ghost" onClick={loadUsers}>{loading ? 'Loading...' : 'Refresh'}</Button>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-3">
-                {users.map(u => (
-                  <div key={u.id} className="border rounded p-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{u.name} <span className="text-xs text-muted-foreground">({u.email})</span></div>
-                      <div className="text-sm text-muted-foreground">{u.phone || '—'} • joined {new Date(u.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select className="border rounded px-2 py-1 text-sm" value={String(u.role||'user')} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </div>
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-muted-foreground">
+                      <tr className="border-b">
+                        <th className="py-2 pr-4">ID</th>
+                        <th className="py-2 pr-4">Username</th>
+                        <th className="py-2 pr-4">Email</th>
+                        <th className="py-2 pr-4">Role</th>
+                        <th className="py-2 pr-0">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginate(filteredUsers).map(u => (
+                        <tr key={u.id} className="border-b hover:bg-muted/30">
+                          <td className="py-2 pr-4 font-medium">{u.id}</td>
+                          <td className="py-2 pr-4">{u.name || '—'}</td>
+                          <td className="py-2 pr-4">{u.email}</td>
+                          <td className="py-2 pr-4">
+                            <Badge variant="secondary" className="capitalize">{String(u.role||'user')}</Badge>
+                          </td>
+                          <td className="py-2 pr-0">
+                            <select className="border rounded px-2 py-1 text-xs" value={String(u.role||'user')} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
+                              <option value="user">user</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div>Showing {paginate(filteredUsers).length} of {filteredUsers.length} users</div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={page<=1} onClick={() => setPage(p => Math.max(1, p-1))}>Previous</Button>
+                    <div>Page {page} of {Math.max(1, Math.ceil(filteredUsers.length / pageSize))}</div>
+                    <Button variant="outline" size="sm" disabled={page>=Math.ceil(filteredUsers.length/pageSize)} onClick={() => setPage(p => p+1)}>Next</Button>
                   </div>
-                ))}
+                </div>
               </CardContent>
             </Card>
           )}

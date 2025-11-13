@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const pool = require("../db"); // Server/db.js
+const pool = require("../db");
 const notify = require('../utils/notify');
 const jwt = require('jsonwebtoken');
 
@@ -25,12 +25,10 @@ function requireUser(req, res) {
   }
 }
 
-// create order (stores snapshot even if product missing)
 router.post("/", async (req, res) => {
   const conn = await pool.getConnection();
   try {
-  // incoming order body
-    // If JWT is provided, derive userId from token (source of truth)
+  
     let authUserId = null;
     try {
       const auth = req.headers.authorization || '';
@@ -54,17 +52,15 @@ router.post("/", async (req, res) => {
       idempotency_key = null,
     } = req.body;
 
-    // If idempotency_key provided, try to return an existing order to avoid duplicates
     if (idempotency_key) {
       try {
         const [existing] = await conn.query(`SELECT id FROM orders WHERE idempotency_key = ? LIMIT 1`, [String(idempotency_key)]);
         if (Array.isArray(existing) && existing[0]) {
-          // release connection and return existing order id
+        
           conn.release();
           return res.status(200).json({ id: existing[0].id, existing: true });
         }
       } catch (e) {
-        // continue to create order if the lookup fails for any reason
         console.warn('idempotency lookup failed:', e && e.message ? e.message : e);
       }
     }
@@ -94,9 +90,7 @@ router.post("/", async (req, res) => {
         params
       );
 
-      // Also persist seller-centric sales rows for quick seller queries
       try {
-        // Map productId -> seller_id
         const productIds = items.map(it => it.productId).filter(Boolean);
         let sellerByProduct = new Map();
         if (productIds.length > 0) {
@@ -111,10 +105,9 @@ router.post("/", async (req, res) => {
         for (const it of items) {
           const pid = it.productId ? Number(it.productId) : null;
           const sellerId = pid ? (sellerByProduct.get(pid) || null) : null;
-          if (!sellerId) continue; // skip items without known seller
+          if (!sellerId) continue; 
           const title = it.title || it.name || 'Unknown';
           const price = Number(it.price || 0);
-          // seller_id, order_id, buyer_id, product_id, title, price
           salesValues.push('(?, ?, ?, ?, ?, ?)');
           salesParams.push(sellerId, orderId, authUserId != null ? authUserId : (userId || null), pid, title, price);
         }
@@ -128,7 +121,6 @@ router.post("/", async (req, res) => {
         console.warn('seller_sales insert warning:', e && e.message ? e.message : e);
       }
 
-      // Update product status to 'order_received' for items included in the order
       try {
         const updIds = Array.from(new Set(items.map(it => Number(it.productId)).filter(id => id && !Number.isNaN(id))));
         if (updIds.length > 0) {
@@ -154,7 +146,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// optional: list orders (simple)
 router.get("/", async (req, res) => {
   try {
     const [orders] = await pool.query(
@@ -177,7 +168,6 @@ router.get("/", async (req, res) => {
         product_id: it.product_id,
         title: it.title,
         price: it.price,
-        // quantity is deprecated; assume 1 for backward compatibility
         quantity: 1,
       });
     }
