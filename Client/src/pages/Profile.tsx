@@ -103,17 +103,11 @@ export default function Profile() {
 
   const [myOrders, setMyOrders] = useState<any[]>([]);
   const [loadingMy, setLoadingMy] = useState(false);
-  const [expandedMy, setExpandedMy] = useState<Set<number | string>>(new Set());
   const [hasLoadedMy, setHasLoadedMy] = useState(false);
-
-  const toggleExpandedMy = (id: number | string) => {
-    setExpandedMy(prev => {
-      const next = new Set(prev);
-      const key = String(id);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
+  // table helpers
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const headers = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : undefined as any), [token]);
   const apiBaseMemo = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -147,6 +141,17 @@ export default function Profile() {
     return () => ac.abort();
   }, [apiBaseMemo, token, headers]);
 
+  const cancelOrder = useCallback(async (id: number) => {
+    try {
+      await fetch(`${apiBaseMemo}/api/orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      await loadMy();
+    } catch {}
+  }, [apiBaseMemo, headers, loadMy]);
+
 
   useEffect(() => {
     if (!token) return;
@@ -168,6 +173,35 @@ export default function Profile() {
   }, [loadMy]);
 
   const navigate = useNavigate();
+
+  // search + pagination helpers
+  const normalize = (v: any) => (v == null ? '' : String(v).toLowerCase());
+  const filteredOrders = useMemo(() => {
+    const q = normalize(query);
+    return myOrders.map(o => {
+      let phone = '';
+      let address = '';
+      try {
+        const sa = o.shipping_address || o.shippingAddress || null;
+        if (sa) {
+          phone = sa.phone || sa.contact || '';
+          address = sa.address || sa.addressLine || sa.street || '';
+        }
+      } catch {}
+      return { ...o, _phone: phone, _address: address };
+    }).filter(o => {
+      if (!q) return true;
+      return (
+        normalize(o.id).includes(q) ||
+        normalize(o.payment_method).includes(q) ||
+        normalize(o.payment_status).includes(q) ||
+        normalize(o.status).includes(q) ||
+        normalize(o._phone).includes(q) ||
+        normalize(o._address).includes(q)
+      );
+    });
+  }, [myOrders, query]);
+  const paginate = <T,>(arr: T[]) => arr.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   if (!user) {
     return (
@@ -311,73 +345,77 @@ export default function Profile() {
           )}
 
       {activeTab === 'orders' && (
-      <Card className="border-none shadow-sm bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              My Orders
-              {myOrders.length > 0 && (<Badge variant="outline">{myOrders.length}</Badge>)}
-              {loadingMy && hasLoadedMy && (<RefreshCw className="w-4 h-4 animate-spin text-thrift-green" />)}
-            </CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => { loadMy(); }} title="Refresh">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {!hasLoadedMy && loadingMy ? (
-            <p>Loading orders...</p>
-          ) : myOrders.length === 0 ? (
-            <div className="text-muted-foreground">No orders yet. <a href="/shop" className="text-thrift-green hover:underline">Shop now</a></div>
-          ) : (
-            <div className="space-y-4">
-              {myOrders.map((o) => (
-                <div key={String(o.id || o.ID || o.order_id)} className="border rounded">
-                  <button
-                    className="w-full text-left p-3 flex items-center justify-between hover:bg-[hsl(var(--thrift-green))]/10 transition"
-                    onClick={() => navigate(`/order/${o.id || o.ID || o.order_id}`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">Order #{o.id || o.ID || o.order_id}</span>
-                      <span className="text-xs text-muted-foreground">{new Date(o.created_at || o.createdAt).toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className={(o.payment_status || o.paymentStatus) === 'paid' ? 'bg-[hsl(var(--thrift-green))] text-white' : ''}>
-                        {o.payment_status || o.paymentStatus || 'pending'}
-                      </Badge>
-                      <span className="font-semibold text-thrift-green">NPR {Number(o.total).toLocaleString()}</span>
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${expandedMy.has(String(o.id || o.ID || o.order_id)) ? 'rotate-180' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); toggleExpandedMy(o.id || o.ID || o.order_id); }}
-                      />
-                    </div>
-                  </button>
-                  {expandedMy.has(String(o.id || o.ID || o.order_id)) && (
-                    <div className="px-3 pb-3 text-sm space-y-2">
-                      {o.shipping_address && (
-                        <div className="text-muted-foreground">
-                          Ship to: {o.shipping_address.name || '-'} — {o.shipping_address.address || '-'}, {o.shipping_address.city || '-'} • {o.shipping_address.phone || '-'}
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        {(o.items && Array.isArray(o.items) ? o.items : []).map((it: any, i: number) => (
-                          <div key={i} className="flex justify-between">
-                            <div>{it.title}</div>
-                            <div>NPR {Number(it.price).toLocaleString()}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+        <Card className="border-none shadow-sm bg-card">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle className="text-lg">My Orders</CardTitle>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Input placeholder="Search..." value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
+              <Button variant="outline" type="button">Filter</Button>
+              <Button variant="ghost" onClick={() => { loadMy(); }} title="Refresh">{loadingMy ? 'Loading...' : 'Refresh'}</Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
-          )}
+          </CardHeader>
+          <CardContent>
+            {!hasLoadedMy && loadingMy ? (
+              <p>Loading orders...</p>
+            ) : myOrders.length === 0 ? (
+              <div className="text-muted-foreground">No orders yet. <a href="/shop" className="text-thrift-green hover:underline">Shop now</a></div>
+            ) : (
+              <div className="space-y-3">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-muted-foreground">
+                      <tr className="border-b">
+                        <th className="py-2 pr-4">Order ID</th>
+                        <th className="py-2 pr-4">Items</th>
+                        <th className="py-2 pr-4">Total</th>
+                        <th className="py-2 pr-4">Payment</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-4">Date</th>
+                        <th className="py-2 pr-0">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginate(filteredOrders).map(o => (
+                        <tr key={o.id} className="border-b hover:bg-muted/30">
+                          <td className="py-2 pr-4 font-medium">#{o.id}</td>
+                          <td className="py-2 pr-4">{(o.items || []).length}</td>
+                          <td className="py-2 pr-4">₨ {Number(o.total || 0).toLocaleString()}</td>
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2">
+                              <span>{o.payment_method || '—'}</span>
+                              <Badge variant="secondary" className="capitalize">{String(o.payment_status || 'pending')}</Badge>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-4">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${String(o.status)==='sold' ? 'bg-green-100 text-green-700' : String(o.status)==='cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{String(o.status||'pending')}</span>
+                          </td>
+                          <td className="py-2 pr-4">{new Date(o.created_at).toLocaleDateString()}</td>
+                          <td className="py-2 pr-0">
+                            <div className="flex items-center gap-2">
+                              <Button variant="secondary" size="sm" onClick={() => navigate(`/order/${o.id}`)}>View</Button>
+                              {String(o.status) !== 'cancelled' && (
+                                <Button variant="ghost" size="sm" onClick={() => cancelOrder(o.id)}>Cancel</Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div>Showing {paginate(filteredOrders).length} of {filteredOrders.length} orders</div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={page<=1} onClick={() => setPage(p => Math.max(1, p-1))}>Previous</Button>
+                    <div>Page {page} of {Math.max(1, Math.ceil(filteredOrders.length / pageSize))}</div>
+                    <Button variant="outline" size="sm" disabled={page>=Math.ceil(filteredOrders.length/pageSize)} onClick={() => setPage(p => p+1)}>Next</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
             </div>
           </div>
         </div>

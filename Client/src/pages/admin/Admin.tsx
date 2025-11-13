@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { DollarSign, ShoppingCart, Package, Users as UsersIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -75,6 +76,7 @@ export default function AdminPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [salesRange, setSalesRange] = useState<number>(30); // days: 7,30,90
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
 
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined as any;
 
@@ -130,6 +132,14 @@ export default function AdminPage() {
       try { await loadLedger(); } catch {}
     } finally { setLoading(false); }
   };
+  const loadRecentOrders = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/admin/orders`, { headers });
+      const data = await res.json();
+      const list = Array.isArray(data) ? data.slice(0, 5) : [];
+      setRecentOrders(list);
+    } catch {}
+  };
   const loadProducts = async () => {
     setLoading(true);
     try {
@@ -161,7 +171,7 @@ export default function AdminPage() {
     if (tab === 'orders') loadOrders();
     if (tab === 'products') loadProducts();
     if (tab === 'users') loadUsers();
-    if (tab === 'dashboard') loadAnalytics();
+    if (tab === 'dashboard') { loadAnalytics(); loadRecentOrders(); }
     if (tab === 'payments') loadLedger();
   // verification tab removed
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,11 +279,47 @@ export default function AdminPage() {
         <div className="space-y-6">
           {tab === 'dashboard' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="border-none shadow-sm"><CardHeader><CardTitle>Users</CardTitle></CardHeader><CardContent className="text-3xl font-bold">{summary?.users ?? '—'}</CardContent></Card>
-                <Card className="border-none shadow-sm"><CardHeader><CardTitle>Products</CardTitle></CardHeader><CardContent className="text-3xl font-bold">{summary?.products ?? '—'}</CardContent></Card>
-                <Card className="border-none shadow-sm"><CardHeader><CardTitle>Orders</CardTitle></CardHeader><CardContent className="text-3xl font-bold">{summary?.orders ?? '—'}</CardContent></Card>
-                <Card className="border-none shadow-sm"><CardHeader><CardTitle>Sales (NPR)</CardTitle></CardHeader><CardContent className="text-3xl font-bold">{summary?.sales != null ? Number(summary.sales).toLocaleString() : '—'}</CardContent></Card>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle>Total Sales</CardTitle>
+                    <div className="h-8 w-8 rounded-full bg-thrift-green/10 flex items-center justify-center"><DollarSign className="h-4 w-4 text-thrift-green" /></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{summary?.sales != null ? `₨ ${Number(summary.sales).toLocaleString()}` : '—'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">+12% from last month</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle>Total Orders</CardTitle>
+                    <div className="h-8 w-8 rounded-full bg-thrift-green/10 flex items-center justify-center"><ShoppingCart className="h-4 w-4 text-thrift-green" /></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{summary?.orders ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">+8% from last month</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle>Total Products</CardTitle>
+                    <div className="h-8 w-8 rounded-full bg-thrift-green/10 flex items-center justify-center"><Package className="h-4 w-4 text-thrift-green" /></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{summary?.products ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">+23% from last month</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle>Active Users</CardTitle>
+                    <div className="h-8 w-8 rounded-full bg-thrift-green/10 flex items-center justify-center"><UsersIcon className="h-4 w-4 text-thrift-green" /></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{summary?.users ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">+18% from last month</div>
+                  </CardContent>
+                </Card>
               </div>
 
               <Card className="border-none shadow-sm">
@@ -302,6 +348,71 @@ export default function AdminPage() {
                   )}
                 </CardContent>
               </Card>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Card className="border-none shadow-sm lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Recent Orders</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="w-full overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-muted-foreground">
+                          <tr className="border-b">
+                            <th className="py-2 pr-4">Order ID</th>
+                            <th className="py-2 pr-4">Customer</th>
+                            <th className="py-2 pr-4">Total</th>
+                            <th className="py-2 pr-4">Status</th>
+                            <th className="py-2 pr-0">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(recentOrders || []).map(o => (
+                            <tr key={o.id} className="border-b">
+                              <td className="py-2 pr-4 font-medium">#ORD-{o.id}</td>
+                              <td className="py-2 pr-4">{o.user_id ?? '—'}</td>
+                              <td className="py-2 pr-4">₨ {Number(o.total||0).toLocaleString()}</td>
+                              <td className="py-2 pr-4">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${String(o.status)==='sold' ? 'bg-green-100 text-green-700' : String(o.status)==='cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{String(o.status||'pending')}</span>
+                              </td>
+                              <td className="py-2 pr-0">{new Date(o.created_at).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                          {recentOrders.length === 0 && (
+                            <tr><td className="py-3 text-muted-foreground" colSpan={5}>No recent orders.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-none shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Top Products</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {(analytics?.topProducts || []).slice(0,5).map((tp, idx, arr) => {
+                      const max = Math.max(...arr.map(a => a.revenue || 0), 1);
+                      const pct = Math.round(((tp.revenue || 0) / max) * 100);
+                      return (
+                        <div key={tp.product_id} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="font-medium truncate pr-2" title={tp.title}>{tp.title}</div>
+                            <div className="text-muted-foreground text-xs">₨ {Number(tp.revenue||0).toLocaleString()}</div>
+                          </div>
+                          <div className="h-2 w-full bg-muted rounded">
+                            <div className="h-2 bg-thrift-green rounded" style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">{tp.qty} sold</div>
+                        </div>
+                      );
+                    })}
+                    {(!analytics?.topProducts || analytics.topProducts.length === 0) && (
+                      <div className="text-sm text-muted-foreground">No top product data.</div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
