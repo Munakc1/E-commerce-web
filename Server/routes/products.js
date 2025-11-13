@@ -7,13 +7,10 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const notify = require('../utils/notify');
 const poolMain = pool;
-// const { sendMail } = require('../config/mailer'); // email optional, using in-app messages instead
 
-// ensure uploads dir
 const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// multer disk storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -24,7 +21,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB per file
 
-// helper: extract local filename from absolute image URL
 function filenameFromUrl(url) {
   try {
     const idx = String(url).lastIndexOf('/uploads/');
@@ -35,7 +31,6 @@ function filenameFromUrl(url) {
   }
 }
 
-// helper: ensure category exists and return id; accepts name or id
 async function resolveCategoryId(conn, { categoryId, categoryName }) {
   try {
     if (categoryId) {
@@ -61,7 +56,6 @@ async function resolveCategoryId(conn, { categoryId, categoryName }) {
   }
 }
 
-// helper: auth and ownership
 async function requireOwner(req, res, productId) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
@@ -94,12 +88,10 @@ async function requireOwner(req, res, productId) {
   return { userId, product };
 }
 
-// GET /api/products - list products with images (compatible with older MySQL/MariaDB)
 router.get('/', async (req, res) => {
   try {
     const { verified } = req.query;
     const verifiedOnly = String(verified || '').toLowerCase() === 'true';
-    // Fetch products with seller verification flag joined from users
     const [products] = await pool.query(
       `SELECT p.*, u.is_verified_seller FROM products p
        LEFT JOIN users u ON p.user_id = u.id
@@ -108,7 +100,6 @@ router.get('/', async (req, res) => {
     if (!Array.isArray(products) || products.length === 0) {
       return res.json([]);
     }
-    // Optionally filter by verified sellers
     const filtered = verifiedOnly ? products.filter(p => Number(p.is_verified_seller) === 1) : products;
     const ids = filtered.map(p => p.id);
     if (ids.length === 0) return res.json([]);
@@ -132,7 +123,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/products/mine - list products for current user
 router.get('/mine', async (req, res) => {
   try {
     const auth = req.headers.authorization || '';
@@ -178,7 +168,6 @@ router.get('/mine', async (req, res) => {
   }
 });
 
-// GET /api/products/:id - single product detail with images
 router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -200,7 +189,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/products (multipart/form-data with field "images")
 router.post('/', upload.array('images', 8), async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -217,8 +205,6 @@ router.post('/', upload.array('images', 8), async (req, res) => {
     } = req.body || {};
 
     if (!title) return res.status(400).json({ message: 'title required' });
-
-    // Require JWT and derive userId strictly from token (do not accept from body)
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     if (!token || !process.env.JWT_SECRET) {
@@ -233,7 +219,6 @@ router.post('/', upload.array('images', 8), async (req, res) => {
     const userId = Number(payload.userId || payload.id) || null;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    // Fetch seller details from users table (immutable source of truth)
     const [urows] = await pool.query('SELECT name, phone FROM users WHERE id = ?', [userId]);
     const sellerRow = Array.isArray(urows) && urows[0] ? urows[0] : null;
     if (!sellerRow) return res.status(400).json({ message: 'Seller not found' });
@@ -242,10 +227,8 @@ router.post('/', upload.array('images', 8), async (req, res) => {
 
     await conn.beginTransaction();
 
-    // resolve category id (optional)
     const catId = await resolveCategoryId(conn, { categoryId, categoryName: category });
 
-    // insert product (only columns that exist in your table)
     const [productResult] = await conn.query(
       `INSERT INTO products
         (title, price, originalPrice, brand, category, category_id, size, productCondition, seller, phone, location, image, created_at, user_id)
@@ -254,11 +237,9 @@ router.post('/', upload.array('images', 8), async (req, res) => {
     );
     const productId = productResult.insertId;
 
-    // save uploaded files to product_images and set first image on products.image
     const files = Array.isArray(req.files) ? req.files : [];
     if (files.length > 0) {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      // insert rows into product_images
       const placeholders = files.map(() => '(?, ?)').join(', ');
       const params = files.flatMap(f => [productId, `${baseUrl}/uploads/${f.filename}`]);
       await conn.query(
@@ -266,7 +247,6 @@ router.post('/', upload.array('images', 8), async (req, res) => {
         params
       );
 
-      // update products.image with first image URL (optional)
       const firstUrl = `${baseUrl}/uploads/${files[0].filename}`;
       await conn.query(`UPDATE products SET image = ? WHERE id = ?`, [firstUrl, productId]);
     }
@@ -282,7 +262,6 @@ router.post('/', upload.array('images', 8), async (req, res) => {
   }
 });
 
-// PUT /api/products/:id - update listing (metadata JSON or multipart to add/replace images)
 router.put('/:id', upload.array('images', 8), async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid id' });
@@ -293,7 +272,6 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Build dynamic update for provided fields
     const allowedFields = {
       title: v => v,
       price: v => (v === undefined || v === null || v === '' ? undefined : Number(v)),
@@ -329,7 +307,6 @@ router.put('/:id', upload.array('images', 8), async (req, res) => {
         }
       }
     }
-    // If categoryId or category provided specially, compute category_id
     if (Object.prototype.hasOwnProperty.call(req.body, 'categoryId') && !Object.prototype.hasOwnProperty.call(req.body, 'category_id')) {
       const cid = await resolveCategoryId(conn, { categoryId: req.body.categoryId, categoryName: undefined });
       if (cid !== null) {
@@ -484,7 +461,6 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Contact seller about a product (create in-app message + notification)
 router.post('/:id/message', async (req, res) => {
   try {
     const id = Number(req.params.id);

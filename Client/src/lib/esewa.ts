@@ -5,10 +5,6 @@ export type EsewaInitPayload = {
   orderId?: number | string | null;
 };
 
-/**
- * Initiates an eSewa payment by calling the server and submitting a hidden POST form to eSewa.
- * Throws on failure. This function will redirect the browser on success.
- */
 export async function initiateEsewaPayment(
   apiBase: string,
   payload: EsewaInitPayload,

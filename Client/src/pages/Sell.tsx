@@ -38,8 +38,6 @@ const Sell = () => {
   const { user, token } = useAuth();
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // Removed in favor of dedicated My Listings page
-
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -62,11 +60,6 @@ const Sell = () => {
     };
   }, []);
 
-  // Removed in favor of dedicated My Listings page
-
-  
-
-  // revoke object URLs on unmount
   useEffect(() => {
     return () => {
       images.forEach((src) => {
@@ -75,7 +68,6 @@ const Sell = () => {
     };
   }, [images]);
 
-  // add files helper (applies max limit and sets previews)
   function addFiles(newFiles: File[]) {
     if (!Array.isArray(newFiles) || newFiles.length === 0) return;
     const max = 8;
@@ -90,7 +82,6 @@ const Sell = () => {
     });
   }
 
-  // handle file input change -> create previews and store File objects
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>): void {
     const inputFiles = Array.from(event.target.files || []);
     if (inputFiles.length === 0) return;
@@ -98,8 +89,6 @@ const Sell = () => {
     // reset input so same file can be re-selected if needed
     if (event.target) (event.target as HTMLInputElement).value = '';
   }
-  // Seller verification gating has been removed; trust is built via post-purchase feedback now.
-
   
 
   function removeImage(index: number) {
@@ -132,7 +121,6 @@ const Sell = () => {
     setErrors({});
     setSubmissionStatus('idle');
 
-    // perform client validation early and show messages
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       console.warn('validation failed', newErrors);
@@ -145,7 +133,6 @@ const Sell = () => {
   const fd = new FormData();
     fd.append('title', title);
     fd.append('price', String(parseFloat(price) || 0));
-    // optional / nullable fields that exist in your table
     if (originalPrice) fd.append('originalPrice', String(parseFloat(originalPrice)));
   if (brand) fd.append('brand', brand);
   if (category) fd.append('category', category);
@@ -171,9 +158,7 @@ const Sell = () => {
       }
       const json = text ? JSON.parse(text) : {};
       toast.success('Item listed successfully', { description: `ID: ${json.id || 'unknown'}` });
-      // clear form
       setTitle(''); setPrice(''); setFiles([]); setImages([]);
-      // navigate or update UI as needed
       navigate('/shop');
     } catch (err) {
       console.error('submit error', err);
@@ -223,7 +208,6 @@ const Sell = () => {
                 isVisible && "opacity-100"
               )}
             >
-              {/* Pre-listing verification notice removed: all users may list items. */}
               {/* Submission Status */}
               {submissionStatus === "success" && (
                 <div className="bg-thrift-green/10 text-thrift-green p-4 rounded-lg animate-in fade-in duration-500">

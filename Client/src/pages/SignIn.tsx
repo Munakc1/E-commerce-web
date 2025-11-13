@@ -15,9 +15,9 @@ export const SignIn: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth(); // ← Add this line
+  const { login } = useAuth(); // 
 
-  // Derive intended post-auth redirect from ?next= param
+ 
   const searchParams = new URLSearchParams(location.search);
   const rawNext = searchParams.get('next') || '';
   const sanitizeNext = (val: string): string => {
