@@ -105,7 +105,7 @@ export default function ProductDetail() {
     load();
   }, [id, apiBase]);
 
-  // Load seller trust summary (peer feedback) once product loaded and has sellerId
+  // Load seller trust summary
   useEffect(() => {
     const fetchTrust = async () => {
       if (!product || !product.sellerId) return;
@@ -125,7 +125,6 @@ export default function ProductDetail() {
     fetchTrust();
   }, [product, apiBase]);
 
-  // Load similar items (same category if available; otherwise price-nearby), exclude current
   useEffect(() => {
     const loadSimilar = async () => {
       if (!product) return;
@@ -196,7 +195,7 @@ export default function ProductDetail() {
       </Button>
 
       <div className="grid md:grid-cols-2 gap-12">
-        {/* Product Image (fixed aspect ratio to prevent oversized rendering) */}
+        {/* Product Images */}
         <div>
           <div className="relative w-full overflow-hidden rounded-lg border bg-black/5 aspect-[3/4]">
             <img
