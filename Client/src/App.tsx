@@ -23,6 +23,7 @@ import OrderDetail from "./pages/OrderDetail";
 import Messages from "./pages/Messages";
 import Wishlist from "./pages/Wishlist";
 import MyListings from "./pages/MyListings";
+import OrdersPage from "./pages/Orders";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailure from "./pages/PaymentFailure";
 import { Toaster as AppToaster } from "@/components/ui/sonner";
@@ -49,6 +50,14 @@ const App = () => (
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/wishlist" element={<Wishlist />} />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

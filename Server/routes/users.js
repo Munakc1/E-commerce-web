@@ -21,7 +21,6 @@ function getUserIdFromToken(req) {
 router.put('/me', async (req, res) => {
   let { id, name, phone } = req.body || {};
 
-  // Prefer user id from JWT when available
   const tokenUserId = getUserIdFromToken(req);
   if (tokenUserId) id = tokenUserId;
 
