@@ -5,8 +5,18 @@ async function initDb() {
   let dbConfig;
   let DB_NAME;
 
-  // Support both DATABASE_URL and individual connection params
-  if (process.env.DATABASE_URL) {
+  // Support MYSQL_URL (Railway internal), DATABASE_URL, or individual params
+  if (process.env.MYSQL_URL) {
+    const url = new URL(process.env.MYSQL_URL);
+    dbConfig = {
+      host: url.hostname,
+      port: Number(url.port) || 3306,
+      user: url.username,
+      password: url.password,
+    };
+    DB_NAME = url.pathname.slice(1);
+    console.log(`Using MYSQL_URL (Railway internal): ${url.hostname}/${DB_NAME}`);
+  } else if (process.env.DATABASE_URL) {
     const url = new URL(process.env.DATABASE_URL);
     dbConfig = {
       host: url.hostname,
@@ -14,8 +24,8 @@ async function initDb() {
       user: url.username,
       password: url.password,
     };
-    DB_NAME = url.pathname.slice(1); // remove leading /
-    console.log(`Using DATABASE_URL: ${url.hostname}/${DB_NAME}`);
+    DB_NAME = url.pathname.slice(1);
+    console.log(`Using DATABASE_URL: ${url.hostname}:${url.port}/${DB_NAME}`);
   } else {
     const {
       DB_HOST = 'localhost',
