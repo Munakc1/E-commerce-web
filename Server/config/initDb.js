@@ -10,14 +10,41 @@ async function initDb() {
     DB_NAME = 'thriftsydb',
   } = process.env;
 
-  // Ensure database exists
-  const conn = await mysql.createConnection({
-    host: DB_HOST,
-    port: DB_PORT,
-    user: DB_USER,
-    password: DB_PASS || '',
-    multipleStatements: true,
-  });
+  // Ensure database exists with retry logic and extended timeouts
+  let conn;
+  let retries = 3;
+  let lastError;
+
+  while (retries > 0) {
+    try {
+      console.log(`Attempting to connect to database... (${4 - retries}/3)`);
+      conn = await mysql.createConnection({
+        host: DB_HOST,
+        port: DB_PORT,
+        user: DB_USER,
+        password: DB_PASS || '',
+        multipleStatements: true,
+        connectTimeout: 60000, // 60 seconds
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0,
+      });
+      console.log('Database connection established successfully');
+      break;
+    } catch (error) {
+      lastError = error;
+      retries--;
+      console.error(`Database connection attempt failed: ${error.message}`);
+      if (retries > 0) {
+        console.log(`Retrying in 5 seconds... (${retries} attempts remaining)`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+  }
+
+  if (!conn) {
+    throw new Error(`Failed to connect to database after 3 attempts: ${lastError.message}`);
+  }
+
   await conn.execute(
     `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`
      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
