@@ -2,13 +2,38 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function initDb() {
-  const {
-    DB_HOST = 'localhost',
-    DB_PORT = 3306,
-    DB_USER = 'root',
-    DB_PASS = '',
-    DB_NAME = 'thriftsydb',
-  } = process.env;
+  let dbConfig;
+  let DB_NAME;
+
+  // Support both DATABASE_URL and individual connection params
+  if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    dbConfig = {
+      host: url.hostname,
+      port: Number(url.port) || 3306,
+      user: url.username,
+      password: url.password,
+    };
+    DB_NAME = url.pathname.slice(1); // remove leading /
+    console.log(`Using DATABASE_URL: ${url.hostname}/${DB_NAME}`);
+  } else {
+    const {
+      DB_HOST = 'localhost',
+      DB_PORT = 3306,
+      DB_USER = 'root',
+      DB_PASS = '',
+      DB_NAME: dbName = 'thriftsydb',
+    } = process.env;
+    
+    dbConfig = {
+      host: DB_HOST,
+      port: DB_PORT,
+      user: DB_USER,
+      password: DB_PASS || '',
+    };
+    DB_NAME = dbName;
+    console.log(`Using individual config: ${DB_HOST}/${DB_NAME}`);
+  }
 
   // Ensure database exists with retry logic and extended timeouts
   let conn;
@@ -19,14 +44,9 @@ async function initDb() {
     try {
       console.log(`Attempting to connect to database... (${4 - retries}/3)`);
       conn = await mysql.createConnection({
-        host: DB_HOST,
-        port: DB_PORT,
-        user: DB_USER,
-        password: DB_PASS || '',
+        ...dbConfig,
         multipleStatements: true,
-        connectTimeout: 60000, // 60 seconds
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 0,
+        connectTimeout: 60000, // 60 seconds - only valid option for Connection
       });
       console.log('Database connection established successfully');
       break;
